@@ -1,0 +1,253 @@
+{
+    "pages": {
+        "configuration": {
+            "tabs": [
+                {
+                    "name": "account",
+                    "table": {
+                        "actions": [
+                            "edit",
+                            "delete",
+                            "clone"
+                        ],
+                        "header": [
+                            {
+                                "label": "Name",
+                                "field": "name"
+                            },
+                            {
+                                "label": "xsoar deployment type",
+                                "field": "xsoar_deployment_type"
+                            }
+                        ]
+                    },
+                    "entity": [
+                        {
+                            "type": "text",
+                            "label": "Name",
+                            "validators": [
+                                {
+                                    "type": "string",
+                                    "errorMsg": "Length of ID should be between 1 and 50",
+                                    "minLength": 1,
+                                    "maxLength": 50
+                                },
+                                {
+                                    "type": "regex",
+                                    "errorMsg": "Name must begin with a letter and consist exclusively of alphanumeric characters and underscores.",
+                                    "pattern": "^[a-zA-Z]\\w*$"
+                                }
+                            ],
+                            "field": "name",
+                            "help": "Enter a unique name for this account. (default: xsoar)",
+                            "required": true
+                        },
+                        {
+                            "type": "text",
+                            "label": "xsoar_url",
+                            "help": "The XSOAR API url in the format https://<hostname>:<port>",
+                            "field": "xsoar_url",
+                            "required": true,
+                            "options": {
+                                "display": true
+                            },
+                            "validators": [
+                                {
+                                    "type": "regex",
+                                    "errorMsg": "Value should be in the format https://<fqdn>:<port>",
+                                    "pattern": "^(https://[a-zA-Z0-9._-]+:\\d+)$"
+                                }
+                            ]
+                        },
+                        {
+                            "type": "text",
+                            "label": "xsoar_api_keyid",
+                            "encrypted": false,
+                            "help": "If on-premise, the username for the API connection, if using Cloud, the client_id.",
+                            "field": "xsoar_api_keyid",
+                            "required": true,
+                            "validators": [
+                                {
+                                    "type": "regex",
+                                    "errorMsg": "Non empty value is required.",
+                                    "pattern": "^.+$"
+                                }
+                            ]
+                        },
+                        {
+                            "type": "text",
+                            "label": "xsoar_api_key",
+                            "encrypted": true,
+                            "help": "If on-premise, the password for the API connection, if using Cloud, the client_secret.",
+                            "field": "xsoar_api_key",
+                            "required": true,
+                            "validators": [
+                                {
+                                    "type": "regex",
+                                    "errorMsg": "Non empty value is required.",
+                                    "pattern": "^.+$"
+                                }
+                            ]
+                        },
+                        {
+                            "type": "radio",
+                            "label": "SSL certificate verify",
+                            "field": "xsoar_ssl_verify",
+                            "defaultValue": "1",
+                            "help": "Enable or disable SSL verification.",
+                            "required": true,
+                            "options": {
+                                "items": [
+                                    {
+                                        "value": "1",
+                                        "label": "Yes"
+                                    },
+                                    {
+                                        "value": "0",
+                                        "label": "No"
+                                    }
+                                ],
+                                "display": true
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "label": "Role Based Access Control",
+                            "help": "A comma separated list of Splunk roles a user must be a member of to be allowed to used this account, the role must be a true membership",
+                            "field": "rbac_roles",
+                            "options": {
+                                "display": true
+                            },
+                            "defaultValue": "admin,sc_admin,trackme_user,trackme_power,trackme_admin",
+                            "required": true,
+                            "validators": [
+                                {
+                                    "type": "regex",
+                                    "errorMsg": "Non empty value is required.",
+                                    "pattern": "^.+$"
+                                }
+                            ]
+                        }
+                    ],
+                    "title": "Account"
+                },
+                {
+                    "name": "proxy",
+                    "entity": [
+                        {
+                            "type": "checkbox",
+                            "label": "Enable",
+                            "field": "proxy_enabled"
+                        },
+                        {
+                            "type": "singleSelect",
+                            "label": "Proxy Type",
+                            "options": {
+                                "disableSearch": true,
+                                "autoCompleteFields": [
+                                    {
+                                        "value": "http",
+                                        "label": "http"
+                                    },
+                                    {
+                                        "value": "socks4",
+                                        "label": "socks4"
+                                    },
+                                    {
+                                        "value": "socks5",
+                                        "label": "socks5"
+                                    }
+                                ]
+                            },
+                            "defaultValue": "http",
+                            "field": "proxy_type",
+                            "validators": [
+                                {
+                                    "type": "regex",
+                                    "errorMsg": "Non empty value is required.",
+                                    "pattern": "^.+$"
+                                }
+                            ]
+                        },
+                        {
+                            "type": "text",
+                            "label": "Host",
+                            "validators": [
+                                {
+                                    "type": "string",
+                                    "errorMsg": "Max host length is 4096",
+                                    "minLength": 0,
+                                    "maxLength": 4096
+                                }
+                            ],
+                            "field": "proxy_url"
+                        },
+                        {
+                            "type": "text",
+                            "label": "Port",
+                            "validators": [
+                                {
+                                    "type": "number",
+                                    "range": [
+                                        1,
+                                        65535
+                                    ]
+                                }
+                            ],
+                            "field": "proxy_port"
+                        },
+                        {
+                            "type": "text",
+                            "label": "Username",
+                            "validators": [
+                                {
+                                    "type": "string",
+                                    "errorMsg": "Max length of username is 50",
+                                    "minLength": 0,
+                                    "maxLength": 50
+                                }
+                            ],
+                            "field": "proxy_username"
+                        },
+                        {
+                            "type": "text",
+                            "label": "Password",
+                            "validators": [
+                                {
+                                    "type": "string",
+                                    "errorMsg": "Max length of password is 8192",
+                                    "minLength": 0,
+                                    "maxLength": 8192
+                                }
+                            ],
+                            "encrypted": true,
+                            "field": "proxy_password"
+                        },
+                        {
+                            "type": "checkbox",
+                            "label": "Reverse DNS resolution",
+                            "field": "proxy_rdns"
+                        }
+                    ],
+                    "options": {
+                        "saveValidator": "function(formData) { if(!formData.proxy_enabled || formData.proxy_enabled === '0') {return true; } if(!formData.proxy_url) { return 'Proxy Host can not be empty'; } if(!formData.proxy_port) { return 'Proxy Port can not be empty'; } return true; }"
+                    },
+                    "title": "Proxy Setup"
+                },
+                {
+                    "type": "loggingTab"
+                }
+            ],
+            "title": "Configuration",
+            "description": "Configure the TrackMe Addon for xsoar API"
+        }
+    },
+    "meta": {
+        "name": "TA-trackme-xsoar",
+        "restRoot": "ta_trackme_xsoar",
+        "version": "1.0.0",
+        "displayName": "TA-trackme-xsoar",
+        "schemaVersion": "0.0.9",
+        "_uccVersion": "5.53.0"
+    }
+}
