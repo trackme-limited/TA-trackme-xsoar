@@ -70,7 +70,7 @@ from splunklib.searchcommands import (
 )
 
 # Import trackme libs
-from xsoar_libs import xsoar_reqinfo, xsoar_getloglevel
+from xsoar_libs import xsoar_reqinfo
 
 
 # get current user and roles membership
