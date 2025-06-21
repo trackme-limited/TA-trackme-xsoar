@@ -279,7 +279,9 @@ class xsoarRestHandler(GeneratingCommand):
 
             elif self.target_type == "splunk":
                 headers["Authorization"] = f"Splunk {session_key}"
-                target_url = f"{reqinfo['server_rest_uri']}/{self.url.lstrip('/')}"
+                target_url = (
+                    f"{self._metadata.searchinfo.splunkd_uri}/{self.url.lstrip('/')}"
+                )
                 # Internal communication with splunkd on the loopback, must not verify
                 verify_ssl = False
 
@@ -287,8 +289,22 @@ class xsoarRestHandler(GeneratingCommand):
                 raise Exception(f"Unsupported target_type: {self.target_type}")
 
             if self.body:
-                json_data = prepare_request_body(self.body)
-                headers["Content-Type"] = "application/json"
+                if self.target_type == "splunk":
+                    # For Splunk endpoints, send as JSON (the REST API expects JSON in payload)
+                    try:
+                        # Parse the JSON body and send as JSON string
+                        body_dict = json.loads(self.body)
+                        json_data = json.dumps(body_dict)
+                        headers["Content-Type"] = "application/json"
+                    except ValueError:
+                        # Fallback to literal_eval if json.loads fails
+                        body_dict = literal_eval(self.body)
+                        json_data = json.dumps(body_dict)
+                        headers["Content-Type"] = "application/json"
+                else:
+                    # For XSOAR endpoints, send as JSON
+                    json_data = prepare_request_body(self.body)
+                    headers["Content-Type"] = "application/json"
             else:
                 json_data = None
 
