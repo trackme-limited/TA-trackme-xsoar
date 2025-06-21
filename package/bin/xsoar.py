@@ -19,6 +19,10 @@ import os
 import sys
 import time
 from ast import literal_eval
+from datetime import datetime, timezone
+import secrets
+import string
+import hashlib
 
 # Third-party libraries
 import requests
@@ -108,6 +112,43 @@ def prepare_request_body(body):
         return json.dumps(json.loads(body), indent=1)
     except ValueError:
         return json.dumps(literal_eval(body), indent=1)
+
+
+def generate_xsoar_auth_headers(api_key_id, api_key_secret):
+    """
+    Generate XSOAR authentication headers according to the official API documentation.
+
+    Args:
+        api_key_id: The XSOAR API key ID
+        api_key_secret: The XSOAR API key secret
+
+    Returns:
+        dict: Headers dictionary with proper XSOAR authentication
+    """
+    # Generate a 64 bytes random string
+    nonce = "".join(
+        [secrets.choice(string.ascii_letters + string.digits) for _ in range(64)]
+    )
+
+    # Get the current timestamp as milliseconds
+    timestamp = int(datetime.now(timezone.utc).timestamp()) * 1000
+
+    # Generate the auth key: api_key + nonce + timestamp
+    auth_key = f"{api_key_secret}{nonce}{timestamp}"
+
+    # Convert to bytes object and calculate sha256
+    auth_key_bytes = auth_key.encode("utf-8")
+    api_key_hash = hashlib.sha256(auth_key_bytes).hexdigest()
+
+    # Generate HTTP call headers
+    headers = {
+        "x-xdr-timestamp": str(timestamp),
+        "x-xdr-nonce": nonce,
+        "x-xdr-auth-id": str(api_key_id),
+        "Authorization": api_key_hash,
+    }
+
+    return headers
 
 
 def xsoar_get_account(session_key, splunkd_uri, account):
@@ -266,7 +307,18 @@ class xsoarRestHandler(GeneratingCommand):
                         f'RBAC access granted to this account, user_roles="{user_roles}", account_roles="{rbac_roles}"'
                     )
 
-                headers["Authorization"] = account_info.get("xsoar_token")
+                # Generate proper XSOAR authentication headers
+                api_key_id = account_info.get("xsoar_api_keyid")
+                api_key_secret = account_info.get("xsoar_api_key_secret")
+
+                if not api_key_id or not api_key_secret:
+                    raise Exception(
+                        "XSOAR API key ID or secret not found in account configuration"
+                    )
+
+                xsoar_headers = generate_xsoar_auth_headers(api_key_id, api_key_secret)
+                headers.update(xsoar_headers)
+
                 target_url = f'{account_info.get("xsoar_url")}/{self.url.lstrip("/")}'
 
                 # ssl verification
