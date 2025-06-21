@@ -30,7 +30,7 @@ sys.path.append(os.path.join(splunkhome, "etc", "apps", "TA-trackme-xsoar", "lib
 # set logging
 from xsoar_libs_logging import setup_logger
 
-logger = setup_logger("trackme.rest.xsoar", "trackme_rest_api_xsoar.log")
+logger = setup_logger("trackme.rest.xsoar", "ta_trackme_xsoar_rest_api.log")
 
 # import API handler
 import rest_handler
