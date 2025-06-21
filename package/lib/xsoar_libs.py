@@ -105,157 +105,6 @@ def xsoar_getloglevel(system_authtoken, splunkd_port):
     return loglevel
 
 
-def xsoar_api_token_for_account(session_key, splunkd_uri, account):
-    """
-    Get the account details, login to xsoar API and return.
-    """
-
-    logging.info(f"starting xsoar_api_token_for_account for account={account}")
-
-    # Ensure splunkd_uri starts with "https://"
-    if not splunkd_uri.startswith("https://"):
-        splunkd_uri = f"https://{splunkd_uri}"
-
-    # Build header and target URL
-    headers = CaseInsensitiveDict()
-    headers["Authorization"] = f"Splunk {session_key}"
-    target_url = f"{splunkd_uri}/services/xsoar/v1/get_account"
-
-    # Create a requests session for better performance
-    session = requests.Session()
-    session.headers.update(headers)
-
-    try:
-        # Use a context manager to handle the request
-        with session.post(
-            target_url, verify=False, data=json.dumps({"account": account})
-        ) as response:
-            if response.ok:
-                logging.debug(f'Success xsoar account, data="{response}"')
-                response_json = response.json()
-                return response_json
-            else:
-                error_message = f'Failed xsoar account , status_code={response.status_code}, response_text="{response.text}"'
-                logging.error(error_message)
-                raise Exception(error_message)
-
-    except Exception as e:
-        error_message = f'Failed to retrieve account, exception="{str(e)}"'
-        logging.error(error_message)
-        raise Exception(error_message)
-
-
-def get_xsoar_api_token(connection_info):
-    headers = {"accept": "application/json", "Content-Type": "application/json"}
-    session = requests.session()
-
-    xsoar_deployment_type = connection_info.get("xsoar_deployment_type")
-    xsoar_onprem_leader_url = connection_info.get("xsoar_onprem_leader_url")
-    xsoar_client_id = connection_info.get("xsoar_client_id")
-    xsoar_client_secret = connection_info.get("xsoar_client_secret")
-    xsoar_ssl_verify = int(connection_info.get("xsoar_ssl_verify", 1))
-    xsoar_ssl_certificate_path = connection_info.get("xsoar_ssl_certificate_path", None)
-
-    if xsoar_deployment_type == "onprem":
-        # Enforce https scheme and remove trailing slash in the URL, if any
-        xsoar_onprem_leader_url = (
-            f"https://{xsoar_onprem_leader_url.replace('https://', '').rstrip('/')}"
-        )
-
-        # if ssl cert was provided
-        if xsoar_ssl_verify == 0:
-            response = session.post(
-                f"{xsoar_onprem_leader_url}/api/v1/auth/login",
-                json={"username": xsoar_client_id, "password": xsoar_client_secret},
-                verify=False,
-                headers=headers,
-            )
-
-        elif xsoar_ssl_certificate_path and os.path.isfile(xsoar_ssl_certificate_path):
-            response = session.post(
-                f"{xsoar_onprem_leader_url}/api/v1/auth/login",
-                json={"username": xsoar_client_id, "password": xsoar_client_secret},
-                verify=xsoar_ssl_certificate_path,
-                headers=headers,
-            )
-
-        else:
-            response = session.post(
-                f"{xsoar_onprem_leader_url}/api/v1/auth/login",
-                json={"username": xsoar_client_id, "password": xsoar_client_secret},
-                verify=True,
-                headers=headers,
-            )
-
-        if response.status_code == 200:
-            res = response.json()
-            token = f'Bearer {res["token"]}'
-            return token
-
-        else:
-            error_msg = f"Failed to authenticate against xsoar on-premise API with response.code: {response.status_code}, response.text: {response.text}."
-            logging.error(error_msg)
-            raise Exception(error_msg)
-
-    elif xsoar_deployment_type == "cloud":
-        response = session.post(
-            "https://login.xsoar.cloud/oauth/token",
-            json={
-                "grant_type": "client_credentials",
-                "client_id": xsoar_client_id,
-                "client_secret": xsoar_client_secret,
-                "audience": "https://api.xsoar.cloud",
-            },
-            verify=True,
-            headers=headers,
-        )
-
-        if response.status_code == 200:
-            res = response.json()
-            token = f'Bearer {res["access_token"]}'
-            return token
-        else:
-            error_msg = f"Failed to authenticate against xsoar Cloud API with response.code: {response.status_code}, response.text: {response.text}."
-            logging.error(error_msg)
-            raise Exception(error_msg)
-
-
-def xsoar_test_remote_connectivity(connection_info):
-    xsoar_client_id = connection_info.get("xsoar_client_id")
-    xsoar_client_secret = connection_info.get("xsoar_client_secret")
-
-    logging.info(f"xsoar_test_remote_connectivity connection_info={connection_info}")
-
-    if not xsoar_client_id or not xsoar_client_secret:
-        raise Exception(
-            {
-                "status": "failure",
-                "message": "API credentials must be provided, cannot proceed!",
-            }
-        )
-
-    try:
-        xsoar_api_token = get_xsoar_api_token(connection_info)
-
-        return {
-            "status": "success",
-            "message": "xsoar API connectivity check was successful, service was established",
-            "xsoar_api_token": xsoar_api_token,
-        }
-
-    except Exception as e:
-        error_msg = (
-            f'xsoar API has failed at connectivitity check, exception="{str(e)}"'
-        )
-        logging.error(error_msg)
-        raise Exception(
-            {
-                "message": "xsoar API check failed at connectivity verification",
-                "exception": str(e),
-            }
-        )
-
-
 def get_xsoar_secret(storage_passwords, account):
     # realm
     credential_realm = (
@@ -276,7 +125,7 @@ def get_xsoar_secret(storage_passwords, account):
 
     # extract a clean json object
     bearer_token_rawvalue_match = re.search(
-        '\{"xsoar_client_secret":\s*"(.*)"\}', bearer_token_rawvalue
+        '\{"xsoar_api_key":\s*"(.*)"\}', bearer_token_rawvalue
     )
     if bearer_token_rawvalue_match:
         bearer_token = bearer_token_rawvalue_match.group(1)
@@ -319,13 +168,11 @@ def xsoar_get_account(reqinfo, account):
     # Initialization
     isfound = False
     keys_mapping = {
-        "xsoar_deployment_type": None,
-        "xsoar_cloud_organization_id": None,
-        "xsoar_onprem_leader_url": None,
-        "xsoar_client_id": None,
+        "xsoar_url": None,
+        "xsoar_api_keyid": None,
+        "xsoar_api_key": None,
         "rbac_roles": None,
         "xsoar_ssl_verify": None,
-        "xsoar_ssl_certificate_path": None,
     }
 
     # Get account
@@ -338,13 +185,11 @@ def xsoar_get_account(reqinfo, account):
             break  # Exit loop once the account is found
 
     # Assign variables
-    xsoar_deployment_type = keys_mapping["xsoar_deployment_type"]
-    xsoar_cloud_organization_id = keys_mapping["xsoar_cloud_organization_id"]
-    xsoar_onprem_leader_url = keys_mapping["xsoar_onprem_leader_url"]
-    xsoar_client_id = keys_mapping["xsoar_client_id"]
+    xsoar_url = keys_mapping["xsoar_url"]
+    xsoar_api_keyid = keys_mapping["xsoar_api_keyid"]
+    xsoar_api_key = keys_mapping["xsoar_api_key"]
     rbac_roles = keys_mapping["rbac_roles"]
     xsoar_ssl_verify = keys_mapping["xsoar_ssl_verify"]
-    xsoar_ssl_certificate_path = keys_mapping["xsoar_ssl_certificate_path"]
 
     # end of get configuration
 
@@ -365,34 +210,19 @@ def xsoar_get_account(reqinfo, account):
     rbac_roles = rbac_roles.split(",")
 
     # get the secret
-    xsoar_client_secret = get_xsoar_secret(storage_passwords, account)
-
-    # get token from API
-    connection_info = {
-        "xsoar_deployment_type": xsoar_deployment_type,
-        "xsoar_cloud_organization_id": xsoar_cloud_organization_id,
-        "xsoar_onprem_leader_url": xsoar_onprem_leader_url,
-        "xsoar_client_id": xsoar_client_id,
-        "xsoar_client_secret": xsoar_client_secret,
-        "xsoar_ssl_verify": xsoar_ssl_verify,
-        "xsoar_ssl_certificate_path": xsoar_ssl_certificate_path,
-    }
+    xsoar_api_key_secret = get_xsoar_secret(storage_passwords, account)
 
     try:
-        xsoar_token = get_xsoar_api_token(connection_info)
         return {
             "status": "success",
-            "message": "xsoar API connection was successful",
+            "message": "xsoar get account secret was successful",
             "account": account,
-            "xsoar_deployment_type": xsoar_deployment_type,
-            "xsoar_cloud_organization_id": xsoar_cloud_organization_id,
-            "xsoar_onprem_leader_url": xsoar_onprem_leader_url,
-            "xsoar_client_id": xsoar_client_id,
-            "xsoar_client_secret": xsoar_client_secret,
-            "xsoar_token": xsoar_token,
+            "xsoar_url": xsoar_url,
+            "xsoar_api_keyid": xsoar_api_keyid,
+            "xsoar_api_key": xsoar_api_key,
+            "xsoar_api_key_secret": xsoar_api_key_secret,
             "rbac_roles": rbac_roles,
             "xsoar_ssl_verify": xsoar_ssl_verify,
-            "xsoar_ssl_certificate_path": xsoar_ssl_certificate_path,
         }
 
     except Exception as e:

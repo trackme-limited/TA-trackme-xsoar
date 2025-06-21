@@ -4,6 +4,32 @@
             "tabs": [
                 {
                     "name": "account",
+                    "groups": [
+                        {
+                            "label": "Cortex API target and credentials",
+                            "options": {
+                                "expand": true,
+                                "isExpandable": false
+                            },
+                            "fields": [
+                                "name",
+                                "xsoar_url",
+                                "xsoar_api_keyid",
+                                "xsoar_api_key",
+                                "xsoar_ssl_verify"
+                            ]
+                        },
+                        {
+                            "label": "RBAC and other settings",
+                            "options": {
+                                "expand": true,
+                                "isExpandable": false
+                            },
+                            "fields": [
+                                "rbac_roles"
+                            ]
+                        }
+                    ],
                     "table": {
                         "actions": [
                             "edit",
@@ -16,8 +42,12 @@
                                 "field": "name"
                             },
                             {
-                                "label": "xsoar deployment type",
-                                "field": "xsoar_deployment_type"
+                                "label": "Cortex XSOAR URL",
+                                "field": "xsoar_url"
+                            },
+                            {
+                                "label": "Cortex XSOAR API Key ID",
+                                "field": "xsoar_api_keyid"
                             }
                         ]
                     },
@@ -44,8 +74,8 @@
                         },
                         {
                             "type": "text",
-                            "label": "xsoar_url",
-                            "help": "The XSOAR API url in the format https://<hostname>:<port>",
+                            "label": "API URL",
+                            "help": "The XSOAR API url, In Cortex XSOAR, navigate to Settings & Info > Settings > Integrations > API Keys. example: https://api-company.us.com/xsoar/public/v1",
                             "field": "xsoar_url",
                             "required": true,
                             "options": {
@@ -54,16 +84,16 @@
                             "validators": [
                                 {
                                     "type": "regex",
-                                    "errorMsg": "Value should be in the format https://<fqdn>:<port>",
-                                    "pattern": "^(https://[a-zA-Z0-9._-]+:\\d+)$"
+                                    "errorMsg": "Value should be in the format https://<fqdn>",
+                                    "pattern": "^(https://[a-zA-Z0-9._-]+).*$"
                                 }
                             ]
                         },
                         {
                             "type": "text",
-                            "label": "xsoar_api_keyid",
+                            "label": "API Key ID",
                             "encrypted": false,
-                            "help": "If on-premise, the username for the API connection, if using Cloud, the client_id.",
+                            "help": "In Cortex XSOAR, navigate to Settings & Info > Settings > Integrations > API Keys. In the API Keys table, locate the ID field.",
                             "field": "xsoar_api_keyid",
                             "required": true,
                             "validators": [
@@ -76,9 +106,9 @@
                         },
                         {
                             "type": "text",
-                            "label": "xsoar_api_key",
+                            "label": "API Key",
                             "encrypted": true,
-                            "help": "If on-premise, the password for the API connection, if using Cloud, the client_secret.",
+                            "help": "In Cortex XSOAR, navigate to Settings & Info > Settings > Integrations > API Keys. Select New Key and copy the API Key. (see: https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR-8-API/Get-started-with-Cortex-XSOAR-8-APIs)",
                             "field": "xsoar_api_key",
                             "required": true,
                             "validators": [
@@ -129,7 +159,7 @@
                             ]
                         }
                     ],
-                    "title": "Account"
+                    "title": "XSOAR Account"
                 },
                 {
                     "name": "proxy",
@@ -239,7 +269,7 @@
                 }
             ],
             "title": "Configuration",
-            "description": "Configure the TrackMe Addon for xsoar API"
+            "description": "Configure the TrackMe Addon for Cortex XSOAR"
         }
     },
     "meta": {
