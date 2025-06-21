@@ -66,7 +66,7 @@ from splunklib.searchcommands import (
 )
 
 # Import trackme libs
-from xsoar_libs import xsoar_reqinfo, xsoar_api_token_for_account
+from xsoar_libs import xsoar_reqinfo, xsoar_getloglevel
 
 
 # get current user and roles membership
@@ -92,12 +92,6 @@ def get_user_roles(self):
     return username_roles
 
 
-def get_request_target_type(account):
-    if not account:
-        return "splunk"
-    return "xsoar"
-
-
 def validate_url(target_type, url):
     if target_type == "splunk" and not url.startswith("/services/xsoar/"):
         error_msg = "API url is invalid and should start with: /services/xsoar/ if target is an internal Splunk API endpoint to this application"
@@ -109,53 +103,6 @@ def validate_url(target_type, url):
         raise Exception(error_msg)
 
 
-def prepare_target_url_for_xsoar(account_info, url):
-    xsoar_deployment_type = account_info.get("xsoar_deployment_type")
-    if xsoar_deployment_type == "cloud":
-        return f"https://main-{account_info.get('xsoar_cloud_organization_id')}.xsoar.cloud{url}"
-    if xsoar_deployment_type == "onprem":
-        xsoar_onprem_leader_url = account_info.get("xsoar_onprem_leader_url")
-        if not xsoar_onprem_leader_url.startswith("https://"):
-            xsoar_onprem_leader_url = "https://" + xsoar_onprem_leader_url
-        return f"{xsoar_onprem_leader_url.rstrip('/')}{url}"
-
-
-def prepare_target_url_groups_for_xsoar(account_info):
-    xsoar_deployment_type = account_info.get("xsoar_deployment_type")
-    groups_url = f"/api/v1/master/groups?product=stream"
-    if xsoar_deployment_type == "cloud":
-        return f"https://main-{account_info.get('xsoar_cloud_organization_id')}.xsoar.cloud{groups_url}"
-    if xsoar_deployment_type == "onprem":
-        xsoar_onprem_leader_url = account_info.get("xsoar_onprem_leader_url")
-        if not xsoar_onprem_leader_url.startswith("https://"):
-            xsoar_onprem_leader_url = "https://" + xsoar_onprem_leader_url
-        return f"{xsoar_onprem_leader_url.rstrip('/')}{groups_url}"
-
-
-def prepare_target_url_routes_for_xsoar(account_info, group):
-    xsoar_deployment_type = account_info.get("xsoar_deployment_type")
-    routes_url = f"/api/v1/m/{group}/routes"
-    if xsoar_deployment_type == "cloud":
-        return f"https://main-{account_info.get('xsoar_cloud_organization_id')}.xsoar.cloud{routes_url}"
-    if xsoar_deployment_type == "onprem":
-        xsoar_onprem_leader_url = account_info.get("xsoar_onprem_leader_url")
-        if not xsoar_onprem_leader_url.startswith("https://"):
-            xsoar_onprem_leader_url = "https://" + xsoar_onprem_leader_url
-        return f"{xsoar_onprem_leader_url.rstrip('/')}{routes_url}"
-
-
-def prepare_target_url_conf_for_xsoar(account_info, group):
-    xsoar_deployment_type = account_info.get("xsoar_deployment_type")
-    conf_url = f"/api/v1/m/{group}/system/settings/conf"
-    if xsoar_deployment_type == "cloud":
-        return f"https://main-{account_info.get('xsoar_cloud_organization_id')}.xsoar.cloud{conf_url}"
-    if xsoar_deployment_type == "onprem":
-        xsoar_onprem_leader_url = account_info.get("xsoar_onprem_leader_url")
-        if not xsoar_onprem_leader_url.startswith("https://"):
-            xsoar_onprem_leader_url = "https://" + xsoar_onprem_leader_url
-        return f"{xsoar_onprem_leader_url.rstrip('/')}{conf_url}"
-
-
 def prepare_request_body(body):
     try:
         return json.dumps(json.loads(body), indent=1)
@@ -163,8 +110,69 @@ def prepare_request_body(body):
         return json.dumps(literal_eval(body), indent=1)
 
 
+def xsoar_get_account(session_key, splunkd_uri, account):
+    """
+    Get the account information for the given account
+    This performs a POST call as: "https://127.0.0.1:8089/services/xsoar/v1/get_account" -d "{\"account\": \"xsoar\"}"
+    The response is a JSON object as:
+
+    {
+    "status": "success",
+    "message": "xsoar get account secret was successful",
+    "account": "xsoar",
+    "xsoar_url": "https://api-company.us.com/xsoar/public/v1",
+    "xsoar_api_keyid": "1234",
+    "xsoar_api_key": "******",
+    "xsoar_api_key_secret": "5678910",
+    "rbac_roles": [
+        "admin",
+        "sc_admin",
+        "trackme_user",
+        "trackme_power",
+        "trackme_admin"
+    ],
+    "xsoar_ssl_verify": "1"
+    }
+
+    Args:
+        session_key: The session key to use for the request
+        splunkd_uri: The URI of the Splunk server
+        account: The account to get the information for
+
+    Returns:
+    """
+
+    try:
+        # get the account information
+        response = requests.post(
+            f"{splunkd_uri}/services/xsoar/v1/get_account",
+            headers={"Authorization": f"Splunk {session_key}"},
+            data={"account": account},
+        )
+
+        # raise an exception if the response is not successful
+        response.raise_for_status()
+
+        # parse the response
+        response_json = response.json()
+
+        return response_json
+
+    except Exception as e:
+        logging.error(f"Error in xsoar_get_account: {e}")
+        raise e
+
+
 @Configuration(distributed=False)
 class xsoarRestHandler(GeneratingCommand):
+
+    target_type = Option(
+        doc=""" **Syntax:** **The target_type=**** **Description:** Mandatory, the target type, either 'splunk' or 'xsoar'""",
+        require=True,
+        default="splunk",
+        validate=validators.Match("target_type", r"^(?:splunk|xsoar)$"),
+    )
+
     url = Option(
         doc=""" **Syntax:** **The endpoint URL=**** **Description:** Mandatory, the endpoint URL""",
         require=True,
@@ -177,16 +185,6 @@ class xsoarRestHandler(GeneratingCommand):
         require=False,
         default=None,
         validate=validators.Match("account", r"^.*$"),
-    )
-
-    xsoar_function = Option(
-        doc=""" **Syntax:** **The xsoar_function=**** **Description:** Optional, a prebuilt xsoar function""",
-        require=False,
-        default=None,
-        validate=validators.Match(
-            "mode",
-            r"^(?:get_global_metrics|get_destinations_metrics|get_pipelines_metrics|get_routes_metrics|get_sources_metrics|get_groups_conf)$",
-        ),
     )
 
     mode = Option(
@@ -202,17 +200,8 @@ class xsoarRestHandler(GeneratingCommand):
         default=None,
     )
 
-    run_test = Option(
-        doc=""" **Syntax:** **The run_test=**** **Description:** Optional, run in test mode and return the runtime_sec""",
-        require=False,
-        default=False,
-        validate=validators.Boolean(),
-    )
-
     def generate(self, **kwargs):
         start = time.time()
-        runtime_sec = 0
-        status = "failure"
         error_message = None
 
         try:
@@ -223,8 +212,7 @@ class xsoarRestHandler(GeneratingCommand):
             )
 
             # set logging_level
-            logginglevel = logging.getLevelName(reqinfo["logging_level"])
-            log.setLevel(logginglevel)
+            log.setLevel(reqinfo["logging_level"])
 
             # init headers
             headers = {}
@@ -238,11 +226,10 @@ class xsoarRestHandler(GeneratingCommand):
             timerange = float(latest) - float(earliest)
 
             # identify target_type
-            target_type = get_request_target_type(self.account)
-            validate_url(target_type, self.url)
+            validate_url(self.target_type, self.url)
 
-            if target_type == "xsoar":
-                account_info = xsoar_api_token_for_account(
+            if self.target_type == "xsoar":
+                account_info = xsoar_get_account(
                     self._metadata.searchinfo.session_key,
                     self._metadata.searchinfo.splunkd_uri,
                     self.account,
@@ -280,28 +267,24 @@ class xsoarRestHandler(GeneratingCommand):
                     )
 
                 headers["Authorization"] = account_info.get("xsoar_token")
-                target_url = prepare_target_url_for_xsoar(account_info, self.url)
+                target_url = f'{account_info.get("xsoar_url")}/{self.url.lstrip("/")}'
 
                 # ssl verification
                 xsoar_ssl_verify = int(account_info.get("xsoar_ssl_verify", 1))
-                xsoar_ssl_certificate_path = account_info.get(
-                    "xsoar_ssl_certificate_path", None
-                )
 
                 if xsoar_ssl_verify == 0:
                     verify_ssl = False
-                elif xsoar_ssl_certificate_path and os.path.isfile(
-                    xsoar_ssl_certificate_path
-                ):
-                    verify_ssl = xsoar_ssl_certificate_path
                 else:
                     verify_ssl = True
 
-            else:
+            elif self.target_type == "splunk":
                 headers["Authorization"] = f"Splunk {session_key}"
-                target_url = f"{reqinfo['server_rest_uri']}/{self.url}"
+                target_url = f"{reqinfo['server_rest_uri']}/{self.url.lstrip('/')}"
                 # Internal communication with splunkd on the loopback, must not verify
                 verify_ssl = False
+
+            else:
+                raise Exception(f"Unsupported target_type: {self.target_type}")
 
             if self.body:
                 json_data = prepare_request_body(self.body)
@@ -313,469 +296,51 @@ class xsoarRestHandler(GeneratingCommand):
             # free API call
             #
 
-            if not self.xsoar_function:
-                if self.mode == "get":
-                    response = requests.get(
-                        target_url, headers=headers, verify=verify_ssl
-                    )
-                elif self.mode == "post":
-                    response = requests.post(
-                        target_url, headers=headers, data=json_data, verify=verify_ssl
-                    )
-
-                elif self.mode == "delete":
-                    response = requests.delete(
-                        target_url, headers=headers, data=json_data, verify=verify_ssl
-                    )
-                else:
-                    raise Exception(f"Unsupported mode: {self.mode}")
-
-                if response.status_code not in [200, 201, 202]:
-                    logging.error(
-                        f"HTTP request failed with status code: {response.status_code}, response: {response.text}"
-                    )
-                    logging.error(f"Content: {response.content}")
-                    raise Exception(
-                        f"HTTP request failed with status code: {response.status_code}, response: {response.text}"
-                    )
-
-                try:
-                    response_data = response.json()
-                    logging.debug(
-                        f"response.status_code={response.status_code}, response.text={response.text}"
-                    )
-
-                    if "items" in response_data and isinstance(
-                        response_data["items"], list
-                    ):
-                        # Check if the 'items' list is empty
-                        if not response_data["items"]:
-                            result = {
-                                "_time": time.time(),
-                                "_raw": response.text,
-                            }
-                            if self.run_test:
-                                result.update(
-                                    {
-                                        "runtime_sec": round(time.time() - start, 3),
-                                        "status": "success",
-                                        "error": None,
-                                    }
-                                )
-                            yield result
-                            return
-
-                        # If 'items' is not empty, proceed to process each item
-                        for item in response_data["items"]:
-                            # Check if the item is a dictionary (or dict-like) before accessing its keys
-                            if isinstance(item, dict):
-                                if "id" in item:
-                                    item_id = item["id"]
-                                else:
-                                    item_id = None
-
-                                if "conf" in item:
-                                    # If 'conf' exists in the item, yield that specifically
-                                    item_result = item["conf"]
-
-                                    # add id
-                                    if item_id:
-                                        item_result["id"] = item_id
-
-                                    result = {}
-                                    result["_time"] = time.time()
-                                    result["_raw"] = item_result
-
-                                    if item_id:
-                                        result["id"] = item_id
-
-                                else:
-                                    # If 'conf' doesn't exist in the item, yield the entire item
-                                    result = {
-                                        "_time": time.time(),
-                                        "_raw": json.dumps(item),
-                                    }
-                            elif isinstance(item, list):
-                                for subitem in item:
-                                    # item itself is a list
-                                    result = {
-                                        "_time": time.time(),
-                                        "_raw": subitem,
-                                    }
-
-                            else:
-                                # If the item isn't a dictionary nor a list, just yield the item as-is
-                                logging.info(f"yield item {str(item)}")
-                                result = {
-                                    "_time": time.time(),
-                                    "_raw": response.text,
-                                }
-
-                            if self.run_test:
-                                result.update(
-                                    {
-                                        "runtime_sec": round(time.time() - start, 3),
-                                        "status": "success",
-                                        "error": None,
-                                    }
-                                )
-                            yield result
-
-                    else:
-                        # For other cases, just yield the entire response content
-                        result = {
-                            "_time": time.time(),
-                            "_raw": response.content.decode("utf-8"),
-                        }
-                        if self.run_test:
-                            result.update(
-                                {
-                                    "runtime_sec": round(time.time() - start, 3),
-                                    "status": "success",
-                                    "error": None,
-                                }
-                            )
-                        yield result
-
-                except json.JSONDecodeError:
-                    # If the response isn't valid JSON, return the plain text of the response
-                    logging.debug(
-                        f"response is plain text, attempting to detect JSON in response"
-                    )
-
-                    try:
-                        # Split the response text into individual JSON strings
-                        response_items = response.text.strip().split("\n")
-
-                        # Process each JSON string
-                        for item in response_items:
-                            try:
-                                json_item = json.loads(item)
-                                result = {
-                                    "_time": json_item.get("_time", time.time()),
-                                    "_raw": json_item,
-                                }
-                                if self.run_test:
-                                    result.update(
-                                        {
-                                            "runtime_sec": round(
-                                                time.time() - start, 3
-                                            ),
-                                            "status": "success",
-                                            "error": None,
-                                        }
-                                    )
-                                yield result
-                            except json.JSONDecodeError:
-                                logging.error(f"Invalid JSON: {item}")
-
-                    except Exception as e:
-                        result = {
-                            "_time": time.time(),
-                            "_raw": response.text,
-                        }
-                        if self.run_test:
-                            result.update(
-                                {
-                                    "runtime_sec": round(time.time() - start, 3),
-                                    "status": "success",
-                                    "error": None,
-                                }
-                            )
-                        yield result
-
-            #
-            # pre-built xsoar function
-            #
-
+            if self.mode == "get":
+                logging.info(f"GET {target_url}")
+                response = requests.get(target_url, headers=headers, verify=verify_ssl)
+            elif self.mode == "post":
+                logging.info(f"POST {target_url}, data={json_data}")
+                response = requests.post(
+                    target_url, headers=headers, data=json_data, verify=verify_ssl
+                )
+            elif self.mode == "delete":
+                logging.info(f"DELETE {target_url}, data={json_data}")
+                response = requests.delete(
+                    target_url, headers=headers, data=json_data, verify=verify_ssl
+                )
             else:
-                # timeWindowSeconds should be adapted (rolling up with > 3 hours)
-                if float(timerange) > 10800:
-                    timeWindowSeconds = 600
-                else:
-                    timeWindowSeconds = 10
+                raise Exception(f"Unsupported mode: {self.mode}")
 
+            # raise an exception if the response is not successful
+            response.raise_for_status()
+
+            # parse the response
+            try:
+                response_json = response.json()
                 logging.debug(
-                    f"xsoar_function timeWindowSeconds={timeWindowSeconds} with timerange={timerange}"
+                    f"response.status_code={response.status_code}, response.text={response.text}"
                 )
 
-                if self.xsoar_function == "get_global_metrics":
-                    data = {
-                        "where": '(has_no_dimensions) && (__dist_mode=="worker")',
-                        "aggs": {
-                            "aggregations": [
-                                'sum("total.in_events").as("eventsIn")',
-                                'sum("total.out_events").as("eventsOut")',
-                                'sum("total.in_bytes").as("bytesIn")',
-                                'sum("total.out_bytes").as("bytesOut")',
-                            ],
-                            "timeWindowSeconds": timeWindowSeconds,
-                        },
-                        "earliest": f"{timerange}s",
-                        "latest": time.time(),
-                    }
+                result = {
+                    "_time": time.time(),
+                    "_raw": response_json,
+                }
+                yield result
 
-                elif self.xsoar_function == "get_destinations_metrics":
-                    data = {
-                        "where": '((output != null) && (__worker_group != null)) && ((!!output) && (__dist_mode=="worker"))',
-                        "aggs": {
-                            "splitBys": ["output", "__worker_group"],
-                            "aggregations": [
-                                'sum("total.out_events").as("eventsOut")',
-                                'sum("total.out_bytes").as("bytesOut")',
-                                'sum("total.dropped_events").as("eventsDropped")',
-                                'max("health.outputs").as("health")',
-                                'max("backpressure.outputs").as("backpressure")',
-                            ],
-                            "timeWindowSeconds": timeWindowSeconds,
-                        },
-                        "earliest": f"{timerange}s",
-                        "latest": time.time(),
-                    }
+            except json.JSONDecodeError:
 
-                elif self.xsoar_function == "get_pipelines_metrics":
-                    data = {
-                        "where": '((id != null) && (__worker_group != null)) && ((project == null) && (__dist_mode=="worker"))',
-                        "aggs": {
-                            "aggregations": [
-                                'sum("pipe.out_events").as("eventsOut")',
-                                'sum("pipe.in_events").as("eventsIn")',
-                                'sum("pipe.dropped_events").as("eventsDropped")',
-                            ],
-                            "splitBys": ["id", "__worker_group"],
-                            "timeWindowSeconds": timeWindowSeconds,
-                        },
-                        "earliest": f"{timerange}s",
-                        "latest": time.time(),
-                    }
+                # If the response isn't valid JSON, return the plain text of the response
+                logging.debug(
+                    f"response is plain text, attempting to detect JSON in response"
+                )
 
-                elif self.xsoar_function == "get_routes_metrics":
-                    data = {
-                        "aggs": {
-                            "aggregations": [
-                                'sum("route.out_events").as("eventsOut")',
-                                'sum("route.out_bytes").as("bytesOut")',
-                                'sum("route.in_events").as("eventsIn")',
-                                'sum("route.in_bytes").as("bytesIn")',
-                                'sum("route.dropped_events").as("eventsDropped")',
-                            ],
-                            "splitBys": ["id", "__worker_group"],
-                            "timeWindowSeconds": timeWindowSeconds,
-                        },
-                        "earliest": f"{timerange}s",
-                        "latest": time.time(),
-                        "where": '((id != null) && (__worker_group != null)) && (__dist_mode=="worker")',
-                    }
+                result = {
+                    "_time": time.time(),
+                    "_raw": response.text,
+                }
+                yield result
 
-                elif self.xsoar_function == "get_sources_metrics":
-                    data = {
-                        "where": '((input != null) && (__worker_group != null)) && ((!!input) && (__dist_mode=="worker"))',
-                        "aggs": {
-                            "aggregations": [
-                                'sum("total.in_events").as("eventsIn")',
-                                'sum("total.in_bytes").as("bytesIn")',
-                                'max("health.inputs").as("health")',
-                            ],
-                            "splitBys": ["input", "__worker_group"],
-                            "timeWindowSeconds": timeWindowSeconds,
-                        },
-                        "earliest": f"{timerange}s",
-                        "latest": time.time(),
-                    }
-
-                # for routes, we need to retrieve the routes definition first
-                if self.xsoar_function == "get_routes_metrics":
-                    # get groups
-                    groups_url = prepare_target_url_groups_for_xsoar(account_info)
-                    response_groups = requests.get(
-                        groups_url, headers=headers, verify=verify_ssl
-                    )
-                    response_groups_items = response_groups.json().get("items")
-                    # form a list of groups
-                    groups_list = []
-                    for item in response_groups_items:
-                        groups_list.append(item.get("id"))
-
-                    # init a dict
-                    routes_dict = {}
-
-                    # loop through the groups, and get the routes
-                    for group in groups_list:
-                        routes_url = prepare_target_url_routes_for_xsoar(
-                            account_info, group
-                        )
-                        response_routes = requests.get(
-                            routes_url, headers=headers, verify=verify_ssl
-                        )
-                        routes_items = response_routes.json().get("items")
-                        logging.debug(f"routes_item={routes_items}")
-
-                        # Loop through the route items
-                        for route_item in routes_items:
-                            routes = route_item.get("routes")
-
-                            # finally loop through the routes and populates our dict
-                            for route in routes:
-                                route_id = route.get("id")
-                                route_name = route.get("name")
-                                routes_dict[route_id] = route_name
-
-                    # debug only
-                    logging.debug(f"routes_dict={routes_dict}")
-
-                    # get response
-                    response = requests.post(
-                        target_url, headers=headers, json=data, verify=verify_ssl
-                    )
-
-                elif self.xsoar_function == "get_groups_conf":
-                    # get groups
-                    groups_url = prepare_target_url_groups_for_xsoar(account_info)
-                    response_groups = requests.get(
-                        groups_url, headers=headers, verify=verify_ssl
-                    )
-                    response_groups_items = response_groups.json().get("items")
-                    # form a list of groups
-                    groups_list = []
-                    for item in response_groups_items:
-                        groups_list.append(item.get("id"))
-
-                    # init a dict
-                    groups_conf_dict = {}
-
-                    # loop through the groups, and get the conf
-                    for group in groups_list:
-                        conf_url = prepare_target_url_conf_for_xsoar(
-                            account_info, group
-                        )
-                        response_conf = requests.get(
-                            conf_url, headers=headers, verify=verify_ssl
-                        )
-                        conf_items = response_conf.json()
-                        logging.debug(f"conf_items={conf_items}")
-
-                        # add to dict
-                        groups_conf_dict[group] = conf_items
-
-                    # yield each group conf
-                    for group, conf_items in groups_conf_dict.items():
-                        result = {
-                            "_time": time.time(),
-                            "group": group,
-                            "_raw": conf_items,
-                        }
-                        if self.run_test:
-                            result.update(
-                                {
-                                    "runtime_sec": round(time.time() - start, 3),
-                                    "status": "success",
-                                    "error": None,
-                                }
-                            )
-                        yield result
-
-                    # no need to continue further
-                    return 0
-
-                else:
-                    response = requests.post(
-                        target_url, headers=headers, json=data, verify=verify_ssl
-                    )
-
-                if response.status_code not in [200, 201, 202]:
-                    logging.error(
-                        f"HTTP request failed with status code: {response.status_code}, response: {response.text}"
-                    )
-                    logging.error(f"Content: {response.content}")
-                    raise Exception(
-                        f"HTTP request failed with status code: {response.status_code}, response: {response.text}"
-                    )
-
-                # parse
-                response_data = response.json()
-                results = response_data["results"]
-
-                for result in results:
-                    if self.xsoar_function == "get_global_metrics":
-                        result = {
-                            "_time": result["endtime"],
-                            "_raw": result,
-                            "bytesIn": result.get("bytesIn", 0),
-                            "bytesOut": result.get("bytesOut", 0),
-                            "eventsIn": result.get("eventsIn", 0),
-                            "eventsOut": result.get("eventsOut", 0),
-                        }
-
-                    elif self.xsoar_function == "get_destinations_metrics":
-                        result = {
-                            "_time": result["endtime"],
-                            "_raw": result,
-                            "worker_group": result.get("__worker_group", "unknown"),
-                            "destination": result.get("output", "unknown"),
-                            "bytesOut": result.get("bytesOut", 0),
-                            "eventsOut": result.get("eventsOut", 0),
-                            "eventsDropped": result.get("eventsDropped", 0),
-                            "health": result.get("health", 0),
-                            "backpressure": result.get("backpressure", 0),
-                        }
-
-                    elif self.xsoar_function == "get_pipelines_metrics":
-                        result = {
-                            "_time": result["endtime"],
-                            "_raw": result,
-                            "worker_group": result.get("__worker_group", "unknown"),
-                            "pipeline": result.get("id", "unknown"),
-                            "eventsOut": result.get("eventsOut", 0),
-                            "eventsIn": result.get("eventsIn", 0),
-                            "eventsDropped": result.get("eventsDropped", 0),
-                        }
-
-                    elif self.xsoar_function == "get_routes_metrics":
-                        # enrich with the route names
-                        route_id = result.get("id", "unknown")
-                        try:
-                            route_name = routes_dict[route_id]
-                            result["route"] = route_name
-                        except Exception as e:
-                            route_name = "unknown"
-
-                        result = {
-                            "_time": result["endtime"],
-                            "_raw": result,
-                            "worker_group": result.get("__worker_group", "unknown"),
-                            "route_id": route_id,
-                            "route": route_name,
-                            "bytesIn": result.get("bytesIn", 0),
-                            "bytesOut": result.get("bytesOut", 0),
-                            "eventsIn": result.get("eventsIn", 0),
-                            "eventsOut": result.get("eventsOut", 0),
-                            "eventsDropped": result.get("eventsDropped", 0),
-                        }
-
-                    elif self.xsoar_function == "get_sources_metrics":
-                        result = {
-                            "_time": result["endtime"],
-                            "_raw": result,
-                            "worker_group": result.get("__worker_group", "unknown"),
-                            "source": result.get("input", "unknown"),
-                            "bytesIn": result.get("bytesIn", 0),
-                            "eventsIn": result.get("eventsIn", 0),
-                            "health": result.get("health", 0),
-                        }
-
-                    if self.run_test:
-                        result.update(
-                            {
-                                "runtime_sec": round(time.time() - start, 3),
-                                "status": "success",
-                                "error": None,
-                            }
-                        )
-                    yield result
-
-            logging.debug(
-                f"response.text={response.text}, response.status_code={response.status_code}"
-            )
             # Log the run time
             logging.info(
                 f"xsoar API command has terminated, response is logged in debug mode only, run_time={round(time.time() - start, 3)}"
@@ -784,16 +349,7 @@ class xsoarRestHandler(GeneratingCommand):
         except Exception as e:
             error_message = str(e)
             logging.error(f"Error in xsoar API command: {error_message}")
-            if self.run_test:
-                yield {
-                    "_time": time.time(),
-                    "_raw": error_message,
-                    "runtime_sec": 0,
-                    "status": "failure",
-                    "error": error_message,
-                }
-            else:
-                raise e
+            raise e
 
 
 dispatch(xsoarRestHandler, sys.argv, sys.stdin, sys.stdout, __name__)
