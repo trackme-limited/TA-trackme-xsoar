@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 import secrets
 import string
 import hashlib
+import uuid
 
 # Third-party libraries
 import requests
@@ -170,7 +171,8 @@ def xsoar_get_account(session_key, splunkd_uri, account):
         response = requests.post(
             f"{splunkd_uri}/services/xsoar/v1/get_account",
             headers={"Authorization": f"Splunk {session_key}"},
-            data={"account": account},
+            data=json.dumps({"account": account}),
+            verify=False,
         )
 
         # raise an exception if the response is not successful
@@ -184,6 +186,67 @@ def xsoar_get_account(session_key, splunkd_uri, account):
     except Exception as e:
         logging.error(f"Error in xsoar_get_account: {e}")
         raise e
+
+
+def get_uuid():
+    """
+    Function to return a unique uuid which is used to trace performance run_time of each subtask.
+    """
+    return str(uuid.uuid4())
+
+
+def store_in_resilient_store(
+    self,
+    collection_name,
+    collection,
+    request_endpoint,
+    request_method,
+    request_body,
+    last_error,
+):
+    """
+    Function to store the request in the resilient KVstore if the request call has failed.
+    We will store with the following concept:
+    - _key: generate a random uuid
+    - account: the account name
+    - transaction_id: same as the _key
+    - request_endpoint: the endpoint of the request
+    - request_method: the method of the request
+    - request_body: the body of the request
+    - status: failed (static)
+    - last_error: the error message of the request
+    """
+
+    # generate a random uuid
+    transaction_id = get_uuid()
+
+    # define the record
+    record = {
+        "_key": transaction_id,
+        "account": self.account,
+        "transaction_id": transaction_id,
+        "request_endpoint": request_endpoint,
+        "request_method": request_method,
+        "request_body": json.dumps(request_body),
+        "status": "failed",
+        "ctime": time.time(),
+        "mtime": time.time(),
+        "no_attempts": 1,
+        "last_error": last_error,
+    }
+
+    try:
+        collection.data.insert(json.dumps(record))
+        logging.info(
+            f'Successfully stored the record in the resilient store, account="{self.account}", transaction_id="{transaction_id}", collection_name="{collection_name}"'
+        )
+
+    except Exception as e:
+        logging.error(
+            f'Error storing the record in the resilient store, account="{self.account}", transaction_id="{transaction_id}", collection_name="{collection_name}", error="{e}"'
+        )
+
+    return transaction_id
 
 
 @Configuration(distributed=False)
@@ -312,10 +375,23 @@ class xsoarRestHandler(StreamingCommand):
         # session key
         session_key = self._metadata.searchinfo.session_key
 
+        # get the enable_resilient_store
+        enable_resilient_store = int(
+            reqinfo["ta_trackme_xsoar_conf"]["resilient_store"][
+                "enable_resilient_store"
+            ]
+        )
+        # turn int to a boolean
+        enable_resilient_store = bool(enable_resilient_store)
+
         # earliest & latest
         earliest = self._metadata.searchinfo.earliest_time
         latest = self._metadata.searchinfo.latest_time
         timerange = float(latest) - float(earliest)
+
+        # connect to the resilient store
+        collection_name = "kv_xsoar_resilient_store"
+        collection = self.service.kvstore[collection_name]
 
         # get the account information
         account_info = xsoar_get_account(
@@ -454,6 +530,18 @@ class xsoarRestHandler(StreamingCommand):
                             result_record["xsoar_response"] = response.text
                     else:
                         result_record["xsoar_error"] = response.text
+                        # store the record in the resilient store
+                        if enable_resilient_store:
+                            logging.info(f"MARKER calling store_in_resilient_store")
+                            store_in_resilient_store(
+                                self,
+                                collection_name,
+                                collection,
+                                "incident",
+                                "POST",
+                                incident_json,
+                                response.text,
+                            )
 
                     yield result_record
 
@@ -461,6 +549,19 @@ class xsoarRestHandler(StreamingCommand):
                     logging.error(f"Error calling XSOAR incident API: {e}")
                     error_record = record.copy()
                     error_record["error_message"] = str(e)
+
+                    # store the record in the resilient store
+                    if enable_resilient_store:
+                        logging.info(f"MARKER calling store_in_resilient_store")
+                        store_in_resilient_store(
+                            self,
+                            collection_name,
+                            collection,
+                            "incident",
+                            "POST",
+                            incident_json,
+                            f"Error calling XSOAR incident API: {e}",
+                        )
                     yield error_record
 
             else:

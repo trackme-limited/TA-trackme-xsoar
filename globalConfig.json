@@ -162,6 +162,61 @@
                     "title": "XSOAR Account"
                 },
                 {
+                    "name": "resilient_store",
+                    "groups": [
+                        {
+                            "label": "Resilient Store Configuration",
+                            "options": {
+                                "expand": true,
+                                "isExpandable": false
+                            },
+                            "fields": [
+                                "enable_resilient_store",
+                                "max_attempts"
+                            ]
+                        }
+                    ],
+                    "entity": [
+                        {
+                            "type": "radio",
+                            "label": "Enable Resilient Store",
+                            "field": "enable_resilient_store",
+                            "defaultValue": "1",
+                            "help": "Enable or disable the resilient store.",
+                            "required": true,
+                            "options": {
+                                "items": [
+                                    {
+                                        "value": "1",
+                                        "label": "Yes"
+                                    },
+                                    {
+                                        "value": "0",
+                                        "label": "No"
+                                    }
+                                ],
+                                "display": true
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "label": "Max number of attempts",
+                            "help": "This defines the maximum number of attempts to retry a previously failed request to XSOAR, once this number of attempt is reached, the failing transation is permanently removed from the resilient store and will not be re-attempted. The default value is 96 which means 24 hours as the default scheduled is once every 15 minutes.",
+                            "defaultValue": 96,
+                            "required": true,
+                            "field": "max_attempts",
+                            "validators": [
+                                {
+                                    "type": "regex",
+                                    "errorMsg": "Must be a valid number.",
+                                    "pattern": "^\\d+$"
+                                }
+                            ]
+                        }
+                    ],
+                    "title": "Resilient Store"
+                },
+                {
                     "name": "proxy",
                     "entity": [
                         {
