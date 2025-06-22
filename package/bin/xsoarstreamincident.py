@@ -533,7 +533,7 @@ class xsoarRestHandler(StreamingCommand):
                         # store the record in the resilient store
                         if enable_resilient_store:
                             logging.info(f"MARKER calling store_in_resilient_store")
-                            store_in_resilient_store(
+                            transaction_id = store_in_resilient_store(
                                 self,
                                 collection_name,
                                 collection,
@@ -541,6 +541,9 @@ class xsoarRestHandler(StreamingCommand):
                                 "POST",
                                 incident_json,
                                 response.text,
+                            )
+                            result_record["message"] = (
+                                f'record stored in the resilient store, transaction_id="{transaction_id}"'
                             )
 
                     yield result_record
@@ -553,7 +556,7 @@ class xsoarRestHandler(StreamingCommand):
                     # store the record in the resilient store
                     if enable_resilient_store:
                         logging.info(f"MARKER calling store_in_resilient_store")
-                        store_in_resilient_store(
+                        transaction_id = store_in_resilient_store(
                             self,
                             collection_name,
                             collection,
@@ -561,6 +564,9 @@ class xsoarRestHandler(StreamingCommand):
                             "POST",
                             incident_json,
                             f"Error calling XSOAR incident API: {e}",
+                        )
+                        error_record["message"] = (
+                            f'record stored in the resilient store, transaction_id="{transaction_id}"'
                         )
                     yield error_record
 
