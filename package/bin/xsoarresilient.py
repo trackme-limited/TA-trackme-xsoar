@@ -185,6 +185,7 @@ def xsoar_get_account(session_key, splunkd_uri, account):
 
     try:
         # get the account information
+        # Splunk Cloud vetting note: this is an internal call to the splunkd API and SSL verification must be disabled
         response = requests.post(
             f"{splunkd_uri}/services/xsoar/v1/get_account",
             headers={"Authorization": f"Splunk {session_key}"},
@@ -464,6 +465,7 @@ class xsoarRestHandler(GeneratingCommand):
                     headers.update(xsoar_headers)
 
                     target_url = f'{account_info.get("xsoar_url")}/{request_endpoint.lstrip("/")}'
+                    logging.info(f"MARKER target_url={target_url}")
 
                     # ssl verification
                     xsoar_ssl_verify = int(account_info.get("xsoar_ssl_verify", 1))

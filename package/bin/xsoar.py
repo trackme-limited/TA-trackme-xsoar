@@ -101,10 +101,6 @@ def validate_url(target_type, url):
         error_msg = "API url is invalid and should start with: /services/xsoar/ if target is an internal Splunk API endpoint to this application"
         logging.error(error_msg)
         raise Exception(error_msg)
-    elif target_type == "xsoar" and not url.startswith("/api/"):
-        error_msg = "API url is invalid and should start with: /api/ when target is a xsoar API endpoint"
-        logging.error(error_msg)
-        raise Exception(error_msg)
 
 
 def prepare_request_body(body):
@@ -185,10 +181,12 @@ def xsoar_get_account(session_key, splunkd_uri, account):
 
     try:
         # get the account information
+        # Splunk Cloud vetting note: this is an internal call to the splunkd API and SSL verification must be disabled
         response = requests.post(
             f"{splunkd_uri}/services/xsoar/v1/get_account",
             headers={"Authorization": f"Splunk {session_key}"},
-            data={"account": account},
+            data=json.dumps({"account": account}),
+            verify=False,
         )
 
         # raise an exception if the response is not successful
@@ -209,8 +207,8 @@ class xsoarRestHandler(GeneratingCommand):
 
     target_type = Option(
         doc=""" **Syntax:** **The target_type=**** **Description:** Mandatory, the target type, either 'splunk' or 'xsoar'""",
-        require=True,
-        default="splunk",
+        require=False,
+        default="xsoar",
         validate=validators.Match("target_type", r"^(?:splunk|xsoar)$"),
     )
 
@@ -270,6 +268,9 @@ class xsoarRestHandler(GeneratingCommand):
             validate_url(self.target_type, self.url)
 
             if self.target_type == "xsoar":
+                if not self.account:
+                    raise Exception("Account is mandatory for xsoar target_type")
+
                 account_info = xsoar_get_account(
                     self._metadata.searchinfo.session_key,
                     self._metadata.searchinfo.splunkd_uri,
@@ -320,6 +321,7 @@ class xsoarRestHandler(GeneratingCommand):
                 headers.update(xsoar_headers)
 
                 target_url = f'{account_info.get("xsoar_url")}/{self.url.lstrip("/")}'
+                logging.debug(f"target_url={target_url}")
 
                 # ssl verification
                 xsoar_ssl_verify = int(account_info.get("xsoar_ssl_verify", 1))
