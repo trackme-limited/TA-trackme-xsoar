@@ -465,7 +465,7 @@ class xsoarRestHandler(GeneratingCommand):
                     headers.update(xsoar_headers)
 
                     target_url = f'{account_info.get("xsoar_url")}/{request_endpoint.lstrip("/")}'
-                    logging.info(f"MARKER target_url={target_url}")
+                    logging.debug(f"target_url={target_url}")
 
                     # ssl verification
                     xsoar_ssl_verify = int(account_info.get("xsoar_ssl_verify", 1))
