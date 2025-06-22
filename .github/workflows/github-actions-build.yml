@@ -148,7 +148,7 @@ jobs:
           port: ${{ secrets.RELEASE_SITE_SSH_PORT }}
           envs: VERSION_NUMBER,BUILD_NUMBER
           script: |
-            mkdir "/var/www/trackme-solutions.com/downloads/TA-trackme-xsoar/TA-trackme-cribl_${VERSION_NUMBER}_${BUILD_NUMBER}"
+            mkdir "/var/www/trackme-solutions.com/downloads/TA-trackme-xsoar/TA-trackme-xsoar_${VERSION_NUMBER}_${BUILD_NUMBER}"
 
       - name: Upload to release site
         # main branch only
@@ -163,7 +163,7 @@ jobs:
           key: ${{ secrets.RELEASE_SITE_SSH_KEY }}
           port: ${{ secrets.RELEASE_SITE_SSH_PORT }}
           source: "output/*.tgz,output/release-sha256.txt,output/report_appinspect*,README*"
-          target: "/var/www/trackme-solutions.com/downloads/TA-trackme-xsoar/TA-trackme-cribl_${{ env.VERSION_NUMBER }}_${{ env.BUILD_NUMBER }}"
+          target: "/var/www/trackme-solutions.com/downloads/TA-trackme-xsoar/TA-trackme-xsoar_${{ env.VERSION_NUMBER }}_${{ env.BUILD_NUMBER }}"
           strip_components: 1
 
       #
