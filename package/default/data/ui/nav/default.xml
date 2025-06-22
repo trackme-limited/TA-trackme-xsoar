@@ -1,0 +1,21 @@
+<?xml version="1.0" ?>
+<nav>
+    <view name="configuration" default="true"/>
+    <collection label="Search">
+        <view name="search" />
+        <view name="reports" />
+        <view name="dashboards" />
+        <view name="alerts" />
+        <view name="analytics_workspace" />
+    </collection>
+    <collection label="Audit &amp; troubleshoot">
+        <a href="search?q=index%3D_internal%20sourcetype%3Dxsoar:*">ALL - search all XSOAR logs</a>
+        <a href="search?q=index%3D_internal%20sourcetype%3Dxsoar:rest_api">REST API logs</a>
+        <a href="search?q=index%3D_internal%20sourcetype%3Dxsoar:custom_commands:xsoar">command xsoar</a>
+        <a href="search?q=index%3D_internal%20sourcetype%3Dxsoar:custom_commands:xsoarresilient">command xsoarresilient</a>
+        <a href="search?q=index%3D_internal%20sourcetype%3Dxsoar:custom_commands:xsoarstreamincident">command xsoarstreamincident</a>
+    </collection>
+    <collection label="License, Help &amp; support">
+        <a href="https://docs.trackme-solutions.com">Documentation</a>
+    </collection>
+</nav>
