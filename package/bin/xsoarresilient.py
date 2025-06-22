@@ -393,13 +393,13 @@ class xsoarRestHandler(GeneratingCommand):
                     # - if max_attempts is reached, delete the record from the resilient store
                     #
 
-                    logging.info(
-                        f'MARKER no_attempts="{no_attempts}", max_attempts="{max_attempts}"'
+                    logging.debug(
+                        f'no_attempts="{no_attempts}", max_attempts="{max_attempts}"'
                     )
 
                     if no_attempts >= max_attempts:
                         logging.info(
-                            f'MARKER Max attempts reached, deleting the record from the resilient store, transaction_id="{transaction_id}", account="{account}", request_endpoint="{request_endpoint}", request_method="{request_method}", request_body="{request_body}"'
+                            f'Max attempts reached, deleting the record from the resilient store, transaction_id="{transaction_id}", account="{account}", request_endpoint="{request_endpoint}", request_method="{request_method}", request_body="{request_body}"'
                         )
                         if not self.run_mode == "simulate":
                             try:
