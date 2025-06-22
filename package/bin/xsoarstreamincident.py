@@ -259,101 +259,101 @@ class xsoarRestHandler(StreamingCommand):
         validate=validators.Match("account", r"^.*$"),
     )
 
-    closeNotes = Option(
-        doc="""**Syntax:** **closeNotes=<string>** **Description:** Notes for closing the incident.""",
+    incident_closeNotes = Option(
+        doc="""**Syntax:** **incident_closeNotes=<string>** **Description:** Notes for closing the incident.""",
         require=False,
         default=None,
-        validate=validators.Match("closeNotes", r"^.*$"),
+        validate=validators.Match("incident_closeNotes", r"^.*$"),
     )
-    closeReason = Option(
-        doc="""**Syntax:** **closeReason=<string>** **Description:** Reason for closing the incident.""",
+    incident_closeReason = Option(
+        doc="""**Syntax:** **incident_closeReason=<string>** **Description:** Reason for closing the incident.""",
         require=False,
         default=None,
-        validate=validators.Match("closeReason", r"^.*$"),
+        validate=validators.Match("incident_closeReason", r"^.*$"),
     )
-    closed = Option(
-        doc="""**Syntax:** **closed=<string>** **Description:** The date the incident was closed.""",
+    incident_closed = Option(
+        doc="""**Syntax:** **incident_closed=<string>** **Description:** The date the incident was closed.""",
         require=False,
         default=None,
-        validate=validators.Match("closed", r"^.*$"),
+        validate=validators.Match("incident_closed", r"^.*$"),
     )
-    createInvestigation = Option(
-        doc="""**Syntax:** **createInvestigation=<bool>** **Description:** Whether to create an investigation for the incident.""",
+    incident_createInvestigation = Option(
+        doc="""**Syntax:** **incident_createInvestigation=<bool>** **Description:** Whether to create an investigation for the incident.""",
         require=False,
         default=None,
         validate=validators.Boolean(),
     )
-    customFields = Option(
-        doc="""**Syntax:** **customFields=<string>** **Description:** Custom fields for the incident, as a JSON string.""",
+    incident_customFields = Option(
+        doc="""**Syntax:** **incident_customFields=<string>** **Description:** Custom fields for the incident, as a JSON string.""",
         require=False,
         default=None,
-        validate=validators.Match("customFields", r"^.*$"),
+        validate=validators.Match("incident_customFields", r"^.*$"),
     )
-    details = Option(
-        doc="""**Syntax:** **details=<string>** **Description:** The details of the incident.""",
+    incident_details = Option(
+        doc="""**Syntax:** **incident_details=<string>** **Description:** The details of the incident.""",
         require=False,
         default=None,
-        validate=validators.Match("details", r"^.*$"),
+        validate=validators.Match("incident_details", r"^.*$"),
     )
-    labels = Option(
-        doc="""**Syntax:** **labels=<string>** **Description:** Labels for the incident, as a JSON string.""",
+    incident_labels = Option(
+        doc="""**Syntax:** **incident_labels=<string>** **Description:** Labels for the incident, as a JSON string.""",
         require=False,
         default=None,
-        validate=validators.Match("labels", r"^.*$"),
+        validate=validators.Match("incident_labels", r"^.*$"),
     )
-    modified = Option(
-        doc="""**Syntax:** **modified=<string>** **Description:** The date the incident was last modified.""",
+    incident_modified = Option(
+        doc="""**Syntax:** **incident_modified=<string>** **Description:** The date the incident was last modified.""",
         require=False,
         default=None,
-        validate=validators.Match("modified", r"^.*$"),
+        validate=validators.Match("incident_modified", r"^.*$"),
     )
-    name = Option(
-        doc="""**Syntax:** **name=<string>** **Description:** The name of the incident.""",
+    incident_name = Option(
+        doc="""**Syntax:** **incident_name=<string>** **Description:** The name of the incident.""",
         require=False,
         default=None,
-        validate=validators.Match("name", r"^.*$"),
+        validate=validators.Match("incident_name", r"^.*$"),
     )
-    playbookId = Option(
-        doc="""**Syntax:** **playbookId=<string>** **Description:** The ID of the playbook to run for the incident.""",
+    incident_playbookId = Option(
+        doc="""**Syntax:** **incident_playbookId=<string>** **Description:** The ID of the playbook to run for the incident.""",
         require=False,
         default=None,
-        validate=validators.Match("playbookId", r"^.*$"),
+        validate=validators.Match("incident_playbookId", r"^.*$"),
     )
-    rawJSON = Option(
-        doc="""**Syntax:** **rawJSON=<string>** **Description:** The raw JSON of the incident.""",
+    incident_rawJSON = Option(
+        doc="""**Syntax:** **incident_rawJSON=<string>** **Description:** The raw JSON of the incident.""",
         require=False,
         default=None,
-        validate=validators.Match("rawJSON", r"^.*$"),
+        validate=validators.Match("incident_rawJSON", r"^.*$"),
     )
-    reason = Option(
-        doc="""**Syntax:** **reason=<string>** **Description:** The reason for the incident.""",
+    incident_reason = Option(
+        doc="""**Syntax:** **incident_reason=<string>** **Description:** The reason for the incident.""",
         require=False,
         default=None,
-        validate=validators.Match("reason", r"^.*$"),
+        validate=validators.Match("incident_reason", r"^.*$"),
     )
-    severity = Option(
-        doc="""**Syntax:** **severity=<number>** **Description:** The severity of the incident.""",
+    incident_severity = Option(
+        doc="""**Syntax:** **incident_severity=<number>** **Description:** The severity of the incident.""",
         require=False,
         default=None,
         validate=validators.Float(),
     )
-    sla = Option(
-        doc="""**Syntax:** **sla=<number>** **Description:** The SLA for the incident.""",
+    incident_sla = Option(
+        doc="""**Syntax:** **incident_sla=<number>** **Description:** The SLA for the incident.""",
         require=False,
         default=None,
         validate=validators.Float(),
     )
-    status = Option(
-        doc="""**Syntax:** **status=<number>** **Description:** The status of the incident.""",
+    incident_status = Option(
+        doc="""**Syntax:** **incident_status=<number>** **Description:** The status of the incident.""",
         require=False,
         default=None,
         validate=validators.Float(),
     )
-    type = Option(
-        doc="""**Syntax:** **type=<string>** **Description:** The type of the incident.""",
+    incident_type = Option(
+        doc="""**Syntax:** **incident_type=<string>** **Description:** The type of the incident.""",
         require=False,
         default=None,
-        validate=validators.Match("type", r"^.*$"),
+        validate=validators.Match("incident_type", r"^.*$"),
     )
 
     def stream(self, records):
@@ -465,48 +465,50 @@ class xsoarRestHandler(StreamingCommand):
             incident_json = {}
 
             # build the incident json from the command options
-            if self.closeNotes:
-                incident_json["closeNotes"] = self.closeNotes
-            if self.closeReason:
-                incident_json["closeReason"] = self.closeReason
-            if self.closed:
-                incident_json["closed"] = self.closed
-            if self.createInvestigation is not None:
-                incident_json["createInvestigation"] = self.createInvestigation
-            if self.customFields:
+            if self.incident_closeNotes:
+                incident_json["closeNotes"] = self.incident_closeNotes
+            if self.incident_closeReason:
+                incident_json["closeReason"] = self.incident_closeReason
+            if self.incident_closed:
+                incident_json["closed"] = self.incident_closed
+            if self.incident_createInvestigation is not None:
+                incident_json["createInvestigation"] = self.incident_createInvestigation
+            if self.incident_customFields:
                 try:
-                    incident_json["customFields"] = json.loads(self.customFields)
+                    incident_json["customFields"] = json.loads(
+                        self.incident_customFields
+                    )
                 except Exception as e:
                     logging.error(
-                        f'Error decoding customFields, value="{self.customFields}", error="{e}", skipping field.'
+                        f'Error decoding customFields, value="{self.incident_customFields}", error="{e}", skipping field.'
                     )
-            if self.details:
-                incident_json["details"] = self.details
-            if self.labels:
+            if self.incident_details:
+                incident_json["details"] = self.incident_details
+            if self.incident_labels:
                 try:
-                    incident_json["labels"] = json.loads(self.labels)
+                    incident_json["labels"] = json.loads(self.incident_labels)
                 except Exception as e:
                     logging.error(
-                        f'Error decoding labels, value="{self.labels}", error="{e}", skipping field.'
+                        f'Error decoding labels, value="{self.incident_labels}", error="{e}", skipping field.'
                     )
-            if self.modified:
-                incident_json["modified"] = self.modified
-            if self.name:
-                incident_json["name"] = self.name
-            if self.playbookId:
-                incident_json["playbookId"] = self.playbookId
-            if self.rawJSON:
-                incident_json["rawJSON"] = self.rawJSON
-            if self.reason:
-                incident_json["reason"] = self.reason
-            if self.severity is not None:
-                incident_json["severity"] = self.severity
-            if self.sla is not None:
-                incident_json["sla"] = self.sla
-            if self.status is not None:
-                incident_json["status"] = self.status
-            if self.type:
-                incident_json["type"] = self.type
+            if self.incident_modified:
+                incident_json["modified"] = self.incident_modified
+            if self.incident_name:
+                incident_json["name"] = self.incident_name
+            if self.incident_playbookId:
+                incident_json["playbookId"] = self.incident_playbookId
+            if self.incident_rawJSON:
+                incident_json["rawJSON"] = self.incident_rawJSON
+            if self.incident_reason:
+                incident_json["reason"] = self.incident_reason
+            if self.incident_severity is not None:
+                incident_json["severity"] = self.incident_severity
+            if self.incident_sla is not None:
+                incident_json["sla"] = self.incident_sla
+            if self.incident_status is not None:
+                incident_json["status"] = self.incident_status
+            if self.incident_type:
+                incident_json["type"] = self.incident_type
 
             # make the API call if there is content to send
             if incident_json:
@@ -532,7 +534,6 @@ class xsoarRestHandler(StreamingCommand):
                         result_record["xsoar_error"] = response.text
                         # store the record in the resilient store
                         if enable_resilient_store:
-                            logging.info(f"MARKER calling store_in_resilient_store")
                             transaction_id = store_in_resilient_store(
                                 self,
                                 collection_name,
@@ -555,7 +556,6 @@ class xsoarRestHandler(StreamingCommand):
 
                     # store the record in the resilient store
                     if enable_resilient_store:
-                        logging.info(f"MARKER calling store_in_resilient_store")
                         transaction_id = store_in_resilient_store(
                             self,
                             collection_name,
