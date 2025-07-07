@@ -64,8 +64,8 @@
                                 },
                                 {
                                     "type": "regex",
-                                    "errorMsg": "Name must begin with a letter and consist exclusively of alphanumeric characters and underscores.",
-                                    "pattern": "^[a-zA-Z]\\w*$"
+                                    "errorMsg": "Name must begin with a letter and consist exclusively of alphanumeric characters and underscores, all lowercase.",
+                                    "pattern": "^[a-z]\\w*$"
                                 }
                             ],
                             "field": "name",

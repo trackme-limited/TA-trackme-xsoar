@@ -43,7 +43,7 @@ import splunklib.results as results
 # and rely on callers themselves
 
 
-def xsoar_reqinfo(session_key, splunkd_uri):
+def xsoar_reqinfo(logger, session_key, splunkd_uri):
     """
     Retrieve request info & settings.
     """
@@ -65,21 +65,21 @@ def xsoar_reqinfo(session_key, splunkd_uri):
         # Use a context manager to handle the request
         with session.get(target_url, verify=False) as response:
             if response.ok:
-                logging.debug(f'Success retrieving conf, data="{response}"')
+                logger.debug(f'Success retrieving conf, data="{response}"')
                 response_json = response.json()
                 return response_json
             else:
                 error_message = f'Failed to retrieve conf, status_code={response.status_code}, response_text="{response.text}"'
-                logging.error(error_message)
+                logger.error(error_message)
                 raise Exception(error_message)
 
     except Exception as e:
         error_message = f'Failed to retrieve conf, exception="{str(e)}"'
-        logging.error(error_message)
+        logger.error(error_message)
         raise Exception(error_message)
 
 
-def xsoar_getloglevel(system_authtoken, splunkd_port):
+def xsoar_getloglevel(logger, system_authtoken, splunkd_port):
     """
     Simply get and return the loglevel with elevated privileges to avoid code duplication
     """
@@ -105,7 +105,7 @@ def xsoar_getloglevel(system_authtoken, splunkd_port):
     return loglevel
 
 
-def get_xsoar_secret(storage_passwords, account):
+def get_xsoar_secret(logger, storage_passwords, account):
     # realm
     credential_realm = (
         "__REST_CREDENTIAL__#TA-trackme-xsoar#configs/conf-ta_trackme_xsoar_account"
@@ -130,13 +130,14 @@ def get_xsoar_secret(storage_passwords, account):
     if bearer_token_rawvalue_match:
         bearer_token = bearer_token_rawvalue_match.group(1)
     else:
+        logger.error(f"Failed to retrieve xsoar api key secret, account={account}")
         bearer_token = None
 
     return bearer_token
 
 
 # Get account credentials, designed to be used for a least privileges approach in a programmatic approach
-def xsoar_get_account(reqinfo, account):
+def xsoar_get_account(logger, reqinfo, account):
     # get service
     service = client.connect(
         owner="nobody",
@@ -195,9 +196,7 @@ def xsoar_get_account(reqinfo, account):
 
     # Stop here if we cannot find the submitted account
     if not isfound:
-        error_msg = 'The account="{}" has not been configured on this instance, cannot proceed!'.format(
-            account
-        )
+        error_msg = f'The account "{account}" was not found configured in this system, please check your input.'
         raise Exception(
             {
                 "status": "failure",
@@ -210,7 +209,7 @@ def xsoar_get_account(reqinfo, account):
     rbac_roles = rbac_roles.split(",")
 
     # get the secret
-    xsoar_api_key_secret = get_xsoar_secret(storage_passwords, account)
+    xsoar_api_key_secret = get_xsoar_secret(logger, storage_passwords, account)
 
     try:
         return {

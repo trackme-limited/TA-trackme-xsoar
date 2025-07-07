@@ -92,9 +92,12 @@ class XsoarApi_v1(rest_handler.RESTHandler):
             token=request_info.system_authtoken,
         )
 
+        # set default logging to INFO
+        logger.setLevel(logging.INFO)
+
         # set loglevel
         loglevel = xsoar_getloglevel(
-            request_info.system_authtoken, request_info.server_rest_port
+            logger, request_info.system_authtoken, request_info.server_rest_port
         )
         logger.setLevel(loglevel)
 
@@ -105,19 +108,88 @@ class XsoarApi_v1(rest_handler.RESTHandler):
         # Initialize the trackme_conf dictionary
         ta_trackme_xsoar_conf = {}
 
+        # Initialize the proxy-related variables
+        proxy_enabled = "0"
+        proxy_port = None
+        proxy_type = None
+        proxy_url = None
+        proxy_username = None
+        proxy_password = None
+        proxy_dict = None
+        ta_trackme_xsoar_conf["proxy_dict"] = {}
+
         # Get conf
         for stanza in confs:
             logger.debug(f'get_trackme_conf, Processing stanza.name="{stanza.name}"')
-            # Create a sub-dictionary for the current stanza name if it doesn't exist
-            if stanza.name not in ta_trackme_xsoar_conf:
-                ta_trackme_xsoar_conf[stanza.name] = {}
 
-            # Store key-value pairs from the stanza content in the corresponding sub-dictionary
-            for stanzakey, stanzavalue in stanza.content.items():
-                logger.debug(
-                    f'ta_trackme_xsoar_conf, Processing stanzakey="{stanzakey}", stanzavalue="{stanzavalue}"'
-                )
-                ta_trackme_xsoar_conf[stanza.name][stanzakey] = stanzavalue
+            # Process the "proxy" stanza
+            if stanza.name == "proxy":
+                for stanzakey, stanzavalue in stanza.content.items():
+                    if stanzakey == "proxy_enabled":
+                        proxy_enabled = stanzavalue
+                    elif stanzakey == "proxy_port":
+                        proxy_port = stanzavalue
+                    elif stanzakey == "proxy_type":
+                        proxy_type = stanzavalue
+                    elif stanzakey == "proxy_url":
+                        proxy_url = stanzavalue
+                    elif stanzakey == "proxy_username":
+                        proxy_username = stanzavalue
+
+                    # Process proxy settings
+                    if proxy_enabled == "1":
+                        # get proxy password
+                        if proxy_username:
+                            proxy_password = None
+
+                            # get proxy password, if any
+                            storage_passwords = service.storage_passwords
+                            credential_realm = "__REST_CREDENTIAL__#TA-trackme-xsoar#configs/conf-ta_trackme_xsoar_settings"
+                            for credential in storage_passwords:
+                                if (
+                                    credential.content.get("realm")
+                                    == str(credential_realm)
+                                    and credential.content.get("clear_password").find(
+                                        "proxy_password"
+                                    )
+                                    > 0
+                                ):
+                                    proxy_password = json.loads(
+                                        credential.content.get("clear_password")
+                                    ).get("proxy_password")
+                                    break
+
+                            if proxy_type == "http":
+                                proxy_dict = {
+                                    "http": f"http://{proxy_username}:{proxy_password}@{proxy_url}:{proxy_port}",
+                                    "https": f"http://{proxy_username}:{proxy_password}@{proxy_url}:{proxy_port}",
+                                }
+                            else:
+                                proxy_dict = {
+                                    "http": f"{proxy_type}://{proxy_username}:{proxy_password}@{proxy_url}:{proxy_port}",
+                                    "https": f"{proxy_type}://{proxy_username}:{proxy_password}@{proxy_url}:{proxy_port}",
+                                }
+
+                        else:
+                            proxy_dict = {
+                                "http": f"{proxy_url}:{proxy_port}",
+                                "https": f"{proxy_url}:{proxy_port}",
+                            }
+
+                    # add to the response
+                    ta_trackme_xsoar_conf["proxy_dict"] = proxy_dict
+
+            else:
+                # Create a sub-dictionary for the current stanza name if it doesn't exist
+                if stanza.name not in ta_trackme_xsoar_conf:
+                    ta_trackme_xsoar_conf[stanza.name] = {}
+
+                # Store key-value pairs from the stanza content in the corresponding sub-dictionary
+                for stanzakey, stanzavalue in stanza.content.items():
+                    logger.debug(
+                        f'ta_trackme_xsoar_conf, Processing stanzakey="{stanzakey}", stanzavalue="{stanzavalue}"'
+                    )
+                    ta_trackme_xsoar_conf[stanza.name][stanzakey] = stanzavalue
 
         # gen record
         record = {
@@ -140,6 +212,7 @@ class XsoarApi_v1(rest_handler.RESTHandler):
     # Get account credentials with a least privileges approach
     def post_get_account(self, request_info, **kwargs):
         describe = False
+        account = None
         logger.info(f"Starting post_get_account, request_info={request_info}")
 
         # Retrieve from data
@@ -151,16 +224,19 @@ class XsoarApi_v1(rest_handler.RESTHandler):
         logger.info(f"resp_dict is {resp_dict}")
 
         if resp_dict is not None:
-            try:
-                describe = resp_dict["describe"]
-                if describe in ("true", "True"):
-                    describe = True
-            except Exception as e:
-                describe = False
-                account = resp_dict["account"]
+            describe = str(resp_dict.get("describe", "false")).lower() == "true"
+            account = resp_dict.get("account")
         else:
-            # body is not required in this endpoint, if not submitted do not describe the usage
             describe = False
+
+        if not describe and not account:
+            return {
+                "payload": {
+                    "status": "failure",
+                    "message": "Missing 'account' in request body.",
+                },
+                "status": 400,
+            }
 
         # if describe is requested, show the usage
         if describe:
@@ -187,9 +263,12 @@ class XsoarApi_v1(rest_handler.RESTHandler):
             token=request_info.system_authtoken,
         )
 
+        # set default logging to INFO
+        logger.setLevel(logging.INFO)
+
         # set loglevel
         loglevel = xsoar_getloglevel(
-            request_info.system_authtoken, request_info.server_rest_port
+            logger, request_info.system_authtoken, request_info.server_rest_port
         )
         logger.setLevel(loglevel)
 
@@ -217,9 +296,20 @@ class XsoarApi_v1(rest_handler.RESTHandler):
 
         else:
             try:
-                response = xsoar_get_account(request_info, account)
+                response = xsoar_get_account(logger, request_info, account)
                 return {"payload": response, "status": 200}
 
             # note: the exception is returned as a JSON object
             except Exception as e:
+                # If the exception is a dict with status and message, return it as is with the status code
+                try:
+                    err = e.args[0]
+                    if isinstance(err, dict) and "status" in err and "message" in err:
+                        return {
+                            "payload": err,
+                            "status": 404 if err["status"] == "failure" else 500,
+                        }
+                except Exception:
+                    pass
+                # Otherwise, return the stringified error
                 return {"payload": str(e), "status": 500}

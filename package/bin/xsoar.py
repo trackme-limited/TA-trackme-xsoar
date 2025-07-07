@@ -190,7 +190,10 @@ def xsoar_get_account(session_key, splunkd_uri, account):
         )
 
         # raise an exception if the response is not successful
-        response.raise_for_status()
+        if not response.ok:
+            raise Exception(
+                f"Failed to get account information, status_code={response.status_code}, response_text={response.text}"
+            )
 
         # parse the response
         response_json = response.json()
@@ -199,7 +202,7 @@ def xsoar_get_account(session_key, splunkd_uri, account):
 
     except Exception as e:
         logging.error(f"Error in xsoar_get_account: {e}")
-        raise e
+        raise Exception(f"Failed to get account information, error={e}")
 
 
 @Configuration(distributed=False)
@@ -244,14 +247,21 @@ class xsoarRestHandler(GeneratingCommand):
         error_message = None
 
         try:
+            # set default logging to INFO
+            log.setLevel(logging.INFO)
+
             # get reqinfo
             reqinfo = xsoar_reqinfo(
+                logging,
                 self._metadata.searchinfo.session_key,
                 self._metadata.searchinfo.splunkd_uri,
             )
 
             # set logging_level
             log.setLevel(reqinfo["logging_level"])
+
+            # get proxy_dict
+            proxy_dict = reqinfo["ta_trackme_xsoar_conf"].get("proxy_dict", {})
 
             # init headers
             headers = {}
@@ -271,11 +281,15 @@ class xsoarRestHandler(GeneratingCommand):
                 if not self.account:
                     raise Exception("Account is mandatory for xsoar target_type")
 
-                account_info = xsoar_get_account(
-                    self._metadata.searchinfo.session_key,
-                    self._metadata.searchinfo.splunkd_uri,
-                    self.account,
-                )
+                try:
+                    account_info = xsoar_get_account(
+                        self._metadata.searchinfo.session_key,
+                        self._metadata.searchinfo.splunkd_uri,
+                        self.account,
+                    )
+                except Exception as e:
+                    logging.error(f"Error in xsoar_get_account: {e}")
+                    raise Exception(f"Failed to get account information, exception={e}")
 
                 # RBAC
                 rbac_roles = account_info.get("rbac_roles")
@@ -368,17 +382,46 @@ class xsoarRestHandler(GeneratingCommand):
 
             if self.mode == "get":
                 logging.info(f"GET {target_url}")
-                response = requests.get(target_url, headers=headers, verify=verify_ssl)
+                if self.target_type == "xsoar":
+                    response = requests.get(
+                        target_url,
+                        headers=headers,
+                        verify=verify_ssl,
+                        proxies=proxy_dict,
+                    )
+                else:
+                    response = requests.get(
+                        target_url, headers=headers, verify=verify_ssl
+                    )
             elif self.mode == "post":
                 logging.info(f"POST {target_url}, data={json_data}")
-                response = requests.post(
-                    target_url, headers=headers, data=json_data, verify=verify_ssl
-                )
+                if self.target_type == "xsoar":
+                    response = requests.post(
+                        target_url,
+                        headers=headers,
+                        data=json_data,
+                        verify=verify_ssl,
+                        proxies=proxy_dict,
+                    )
+                else:
+                    response = requests.post(
+                        target_url, headers=headers, data=json_data, verify=verify_ssl
+                    )
+
             elif self.mode == "delete":
                 logging.info(f"DELETE {target_url}, data={json_data}")
-                response = requests.delete(
-                    target_url, headers=headers, data=json_data, verify=verify_ssl
-                )
+                if self.target_type == "xsoar":
+                    response = requests.delete(
+                        target_url,
+                        headers=headers,
+                        data=json_data,
+                        verify=verify_ssl,
+                        proxies=proxy_dict,
+                    )
+                else:
+                    response = requests.delete(
+                        target_url, headers=headers, data=json_data, verify=verify_ssl
+                    )
             else:
                 raise Exception(f"Unsupported mode: {self.mode}")
 

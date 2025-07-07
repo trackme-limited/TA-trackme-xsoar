@@ -177,7 +177,10 @@ def xsoar_get_account(session_key, splunkd_uri, account):
         )
 
         # raise an exception if the response is not successful
-        response.raise_for_status()
+        if not response.ok:
+            raise Exception(
+                f"Failed to get account information, status_code={response.status_code}, response_text={response.text}"
+            )
 
         # parse the response
         response_json = response.json()
@@ -186,7 +189,7 @@ def xsoar_get_account(session_key, splunkd_uri, account):
 
     except Exception as e:
         logging.error(f"Error in xsoar_get_account: {e}")
-        raise e
+        raise Exception(f"Failed to get account information, error={e}")
 
 
 def get_uuid():
@@ -361,8 +364,12 @@ class xsoarRestHandler(StreamingCommand):
         start = time.time()
         error_message = None
 
+        # set default logging to INFO
+        log.setLevel(logging.INFO)
+
         # get reqinfo
         reqinfo = xsoar_reqinfo(
+            logging,
             self._metadata.searchinfo.session_key,
             self._metadata.searchinfo.splunkd_uri,
         )
@@ -370,11 +377,11 @@ class xsoarRestHandler(StreamingCommand):
         # set logging_level
         log.setLevel(reqinfo["logging_level"])
 
+        # get proxy_dict
+        proxy_dict = reqinfo["ta_trackme_xsoar_conf"].get("proxy_dict", {})
+
         # init headers
         headers = {}
-
-        # session key
-        session_key = self._metadata.searchinfo.session_key
 
         # get the enable_resilient_store
         enable_resilient_store = int(
@@ -395,11 +402,15 @@ class xsoarRestHandler(StreamingCommand):
         collection = self.service.kvstore[collection_name]
 
         # get the account information
-        account_info = xsoar_get_account(
-            self._metadata.searchinfo.session_key,
-            self._metadata.searchinfo.splunkd_uri,
-            self.account,
-        )
+        try:
+            account_info = xsoar_get_account(
+                self._metadata.searchinfo.session_key,
+                self._metadata.searchinfo.splunkd_uri,
+                self.account,
+            )
+        except Exception as e:
+            logging.error(f"Error in xsoar_get_account: {e}")
+            raise Exception(f"Failed to get account information, exception={e}")
 
         # RBAC
         rbac_roles = account_info.get("rbac_roles")
@@ -519,6 +530,7 @@ class xsoarRestHandler(StreamingCommand):
                         headers=headers,
                         data=json.dumps(incident_json),
                         verify=verify_ssl,
+                        proxies=proxy_dict,
                     )
 
                     result_record = record.copy()
