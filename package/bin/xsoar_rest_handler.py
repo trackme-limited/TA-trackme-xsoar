@@ -92,9 +92,12 @@ class XsoarApi_v1(rest_handler.RESTHandler):
             token=request_info.system_authtoken,
         )
 
+        # set default logging to INFO
+        logger.setLevel(logging.INFO)
+
         # set loglevel
         loglevel = xsoar_getloglevel(
-            request_info.system_authtoken, request_info.server_rest_port
+            logger, request_info.system_authtoken, request_info.server_rest_port
         )
         logger.setLevel(loglevel)
 
@@ -140,6 +143,7 @@ class XsoarApi_v1(rest_handler.RESTHandler):
     # Get account credentials with a least privileges approach
     def post_get_account(self, request_info, **kwargs):
         describe = False
+        account = None
         logger.info(f"Starting post_get_account, request_info={request_info}")
 
         # Retrieve from data
@@ -151,16 +155,19 @@ class XsoarApi_v1(rest_handler.RESTHandler):
         logger.info(f"resp_dict is {resp_dict}")
 
         if resp_dict is not None:
-            try:
-                describe = resp_dict["describe"]
-                if describe in ("true", "True"):
-                    describe = True
-            except Exception as e:
-                describe = False
-                account = resp_dict["account"]
+            describe = str(resp_dict.get("describe", "false")).lower() == "true"
+            account = resp_dict.get("account")
         else:
-            # body is not required in this endpoint, if not submitted do not describe the usage
             describe = False
+
+        if not describe and not account:
+            return {
+                "payload": {
+                    "status": "failure",
+                    "message": "Missing 'account' in request body.",
+                },
+                "status": 400,
+            }
 
         # if describe is requested, show the usage
         if describe:
@@ -187,9 +194,12 @@ class XsoarApi_v1(rest_handler.RESTHandler):
             token=request_info.system_authtoken,
         )
 
+        # set default logging to INFO
+        logger.setLevel(logging.INFO)
+
         # set loglevel
         loglevel = xsoar_getloglevel(
-            request_info.system_authtoken, request_info.server_rest_port
+            logger, request_info.system_authtoken, request_info.server_rest_port
         )
         logger.setLevel(loglevel)
 
@@ -217,9 +227,20 @@ class XsoarApi_v1(rest_handler.RESTHandler):
 
         else:
             try:
-                response = xsoar_get_account(request_info, account)
+                response = xsoar_get_account(logger, request_info, account)
                 return {"payload": response, "status": 200}
 
             # note: the exception is returned as a JSON object
             except Exception as e:
+                # If the exception is a dict with status and message, return it as is with the status code
+                try:
+                    err = e.args[0]
+                    if isinstance(err, dict) and "status" in err and "message" in err:
+                        return {
+                            "payload": err,
+                            "status": 404 if err["status"] == "failure" else 500,
+                        }
+                except Exception:
+                    pass
+                # Otherwise, return the stringified error
                 return {"payload": str(e), "status": 500}

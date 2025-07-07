@@ -194,7 +194,10 @@ def xsoar_get_account(session_key, splunkd_uri, account):
         )
 
         # raise an exception if the response is not successful
-        response.raise_for_status()
+        if not response.ok:
+            raise Exception(
+                f"Failed to get account information, status_code={response.status_code}, response_text={response.text}"
+            )
 
         # parse the response
         response_json = response.json()
@@ -203,7 +206,7 @@ def xsoar_get_account(session_key, splunkd_uri, account):
 
     except Exception as e:
         logging.error(f"Error in xsoar_get_account: {e}")
-        raise e
+        raise Exception(f"Failed to get account information, error={e}")
 
 
 def get_kv_collection(
@@ -254,8 +257,13 @@ class xsoarRestHandler(GeneratingCommand):
         error_message = None
 
         try:
+
+            # set default logging to INFO
+            log.setLevel(logging.INFO)
+
             # get reqinfo
             reqinfo = xsoar_reqinfo(
+                logging,
                 self._metadata.searchinfo.session_key,
                 self._metadata.searchinfo.splunkd_uri,
             )
@@ -352,11 +360,17 @@ class xsoarRestHandler(GeneratingCommand):
                         continue
 
                     # get the account information
-                    account_info = xsoar_get_account(
-                        self._metadata.searchinfo.session_key,
-                        self._metadata.searchinfo.splunkd_uri,
-                        account,
-                    )
+                    try:
+                        account_info = xsoar_get_account(
+                            self._metadata.searchinfo.session_key,
+                            self._metadata.searchinfo.splunkd_uri,
+                            self.account,
+                        )
+                    except Exception as e:
+                        logging.error(f"Error in xsoar_get_account: {e}")
+                        raise Exception(
+                            f"Failed to get account information, exception={e}"
+                        )
 
                     # RBAC
                     rbac_roles = account_info.get("rbac_roles")
