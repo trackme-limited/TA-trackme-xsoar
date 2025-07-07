@@ -273,8 +273,8 @@ class xsoarRestHandler(GeneratingCommand):
             # set logging_level
             log.setLevel(reqinfo["logging_level"])
 
-            # session key
-            session_key = self._metadata.searchinfo.session_key
+            # get proxy_dict
+            proxy_dict = reqinfo["ta_trackme_xsoar_conf"].get("proxy_dict", {})
 
             # get the enable_resilient_store
             enable_resilient_store = int(
@@ -519,6 +519,7 @@ class xsoarRestHandler(GeneratingCommand):
                                 headers=headers,
                                 data=request_body,
                                 verify=verify_ssl,
+                                proxies=proxy_dict,
                             )
                         elif request_method == "DELETE":
                             response = requests.delete(
@@ -526,6 +527,7 @@ class xsoarRestHandler(GeneratingCommand):
                                 headers=headers,
                                 data=request_body,
                                 verify=verify_ssl,
+                                proxies=proxy_dict,
                             )
                         else:
                             raise Exception(

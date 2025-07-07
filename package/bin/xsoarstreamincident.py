@@ -377,11 +377,11 @@ class xsoarRestHandler(StreamingCommand):
         # set logging_level
         log.setLevel(reqinfo["logging_level"])
 
+        # get proxy_dict
+        proxy_dict = reqinfo["ta_trackme_xsoar_conf"].get("proxy_dict", {})
+
         # init headers
         headers = {}
-
-        # session key
-        session_key = self._metadata.searchinfo.session_key
 
         # get the enable_resilient_store
         enable_resilient_store = int(
@@ -530,6 +530,7 @@ class xsoarRestHandler(StreamingCommand):
                         headers=headers,
                         data=json.dumps(incident_json),
                         verify=verify_ssl,
+                        proxies=proxy_dict,
                     )
 
                     result_record = record.copy()

@@ -108,19 +108,88 @@ class XsoarApi_v1(rest_handler.RESTHandler):
         # Initialize the trackme_conf dictionary
         ta_trackme_xsoar_conf = {}
 
+        # Initialize the proxy-related variables
+        proxy_enabled = "0"
+        proxy_port = None
+        proxy_type = None
+        proxy_url = None
+        proxy_username = None
+        proxy_password = None
+        proxy_dict = None
+        ta_trackme_xsoar_conf["proxy_dict"] = {}
+
         # Get conf
         for stanza in confs:
             logger.debug(f'get_trackme_conf, Processing stanza.name="{stanza.name}"')
-            # Create a sub-dictionary for the current stanza name if it doesn't exist
-            if stanza.name not in ta_trackme_xsoar_conf:
-                ta_trackme_xsoar_conf[stanza.name] = {}
 
-            # Store key-value pairs from the stanza content in the corresponding sub-dictionary
-            for stanzakey, stanzavalue in stanza.content.items():
-                logger.debug(
-                    f'ta_trackme_xsoar_conf, Processing stanzakey="{stanzakey}", stanzavalue="{stanzavalue}"'
-                )
-                ta_trackme_xsoar_conf[stanza.name][stanzakey] = stanzavalue
+            # Process the "proxy" stanza
+            if stanza.name == "proxy":
+                for stanzakey, stanzavalue in stanza.content.items():
+                    if stanzakey == "proxy_enabled":
+                        proxy_enabled = stanzavalue
+                    elif stanzakey == "proxy_port":
+                        proxy_port = stanzavalue
+                    elif stanzakey == "proxy_type":
+                        proxy_type = stanzavalue
+                    elif stanzakey == "proxy_url":
+                        proxy_url = stanzavalue
+                    elif stanzakey == "proxy_username":
+                        proxy_username = stanzavalue
+
+                    # Process proxy settings
+                    if proxy_enabled == "1":
+                        # get proxy password
+                        if proxy_username:
+                            proxy_password = None
+
+                            # get proxy password, if any
+                            storage_passwords = service.storage_passwords
+                            credential_realm = "__REST_CREDENTIAL__#TA-trackme-xsoar#configs/conf-ta_trackme_xsoar_settings"
+                            for credential in storage_passwords:
+                                if (
+                                    credential.content.get("realm")
+                                    == str(credential_realm)
+                                    and credential.content.get("clear_password").find(
+                                        "proxy_password"
+                                    )
+                                    > 0
+                                ):
+                                    proxy_password = json.loads(
+                                        credential.content.get("clear_password")
+                                    ).get("proxy_password")
+                                    break
+
+                            if proxy_type == "http":
+                                proxy_dict = {
+                                    "http": f"http://{proxy_username}:{proxy_password}@{proxy_url}:{proxy_port}",
+                                    "https": f"http://{proxy_username}:{proxy_password}@{proxy_url}:{proxy_port}",
+                                }
+                            else:
+                                proxy_dict = {
+                                    "http": f"{proxy_type}://{proxy_username}:{proxy_password}@{proxy_url}:{proxy_port}",
+                                    "https": f"{proxy_type}://{proxy_username}:{proxy_password}@{proxy_url}:{proxy_port}",
+                                }
+
+                        else:
+                            proxy_dict = {
+                                "http": f"{proxy_url}:{proxy_port}",
+                                "https": f"{proxy_url}:{proxy_port}",
+                            }
+
+                    # add to the response
+                    ta_trackme_xsoar_conf["proxy_dict"] = proxy_dict
+
+            else:
+                # Create a sub-dictionary for the current stanza name if it doesn't exist
+                if stanza.name not in ta_trackme_xsoar_conf:
+                    ta_trackme_xsoar_conf[stanza.name] = {}
+
+                # Store key-value pairs from the stanza content in the corresponding sub-dictionary
+                for stanzakey, stanzavalue in stanza.content.items():
+                    logger.debug(
+                        f'ta_trackme_xsoar_conf, Processing stanzakey="{stanzakey}", stanzavalue="{stanzavalue}"'
+                    )
+                    ta_trackme_xsoar_conf[stanza.name][stanzakey] = stanzavalue
 
         # gen record
         record = {
