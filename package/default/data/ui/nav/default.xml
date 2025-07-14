@@ -8,6 +8,7 @@
         <view name="alerts" />
         <view name="analytics_workspace" />
     </collection>
+    <a href="search?q=%7C%20inputlookup%20xsoar_resilient_store%20%7C%20eval%20keyid%3D_key">Resilient Store content</a>
     <collection label="Audit &amp; troubleshoot">
         <a href="search?q=index%3D_internal%20sourcetype%3Dxsoar:*">ALL - search all XSOAR logs</a>
         <a href="search?q=index%3D_internal%20sourcetype%3Dxsoar:rest_api">REST API logs</a>

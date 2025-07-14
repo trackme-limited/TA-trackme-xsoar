@@ -18,6 +18,7 @@ import logging
 import os
 import sys
 import time
+import re
 from ast import literal_eval
 from datetime import datetime, timezone
 import secrets
@@ -253,6 +254,64 @@ def store_in_resilient_store(
     return transaction_id
 
 
+def replace_tokens(command, event_data):
+    """
+    Function to replace tokens in a command string with actual values from event data.
+    Tokens can be in the format $result.<fieldname>$ or $<fieldname>$
+
+    Args:
+        command: The command string containing tokens to replace
+        event_data: The event data dictionary containing values to use for replacement
+
+    Returns:
+        The command string with tokens replaced by their corresponding values
+    """
+    if not command or not event_data:
+        return command
+
+    # Pattern to match $result.<fieldname>$ or $<fieldname>$
+    pattern = r"\$result\.([^$]+)\$|\$([^$]+)\$"
+
+    def replace_match(match):
+        # Get the field name from either capture group
+        field_name = match.group(1) or match.group(2)
+
+        # Try to get the value from event_data
+        try:
+            # Handle nested fields with dot notation
+            value = event_data
+            for part in field_name.split("."):
+                value = value[part]
+            return str(value)
+        except (KeyError, TypeError):
+            # If field not found or value is None, return empty string
+            return ""
+
+    # Replace all matches in the command
+    return re.sub(pattern, replace_match, command)
+
+
+def get_token_value(option_value, record):
+    """
+    Get the actual value for an option, handling token replacement if needed.
+
+    Args:
+        option_value: The option value which may contain tokens
+        record: The current record containing field values
+
+    Returns:
+        The resolved value with tokens replaced, or the original value if no tokens
+    """
+    if not option_value:
+        return option_value
+
+    # Check if the value contains any token patterns
+    if re.search(r"\$[^$]+\$", option_value):
+        return replace_tokens(option_value, record)
+
+    return option_value
+
+
 @Configuration(distributed=False)
 class xsoarRestHandler(StreamingCommand):
 
@@ -362,7 +421,6 @@ class xsoarRestHandler(StreamingCommand):
 
     def stream(self, records):
         start = time.time()
-        error_message = None
 
         # set default logging to INFO
         log.setLevel(logging.INFO)
@@ -395,7 +453,6 @@ class xsoarRestHandler(StreamingCommand):
         # earliest & latest
         earliest = self._metadata.searchinfo.earliest_time
         latest = self._metadata.searchinfo.latest_time
-        timerange = float(latest) - float(earliest)
 
         # connect to the resilient store
         collection_name = "kv_xsoar_resilient_store"
@@ -476,51 +533,119 @@ class xsoarRestHandler(StreamingCommand):
             # init the incident_json
             incident_json = {}
 
-            # build the incident json from the command options
+            # build the incident json from the command options with token replacement
             if self.incident_closeNotes:
-                incident_json["closeNotes"] = self.incident_closeNotes
+                resolved_value = get_token_value(self.incident_closeNotes, record)
+                if resolved_value:
+                    incident_json["closeNotes"] = resolved_value
             if self.incident_closeReason:
-                incident_json["closeReason"] = self.incident_closeReason
+                resolved_value = get_token_value(self.incident_closeReason, record)
+                if resolved_value:
+                    incident_json["closeReason"] = resolved_value
             if self.incident_closed:
-                incident_json["closed"] = self.incident_closed
+                resolved_value = get_token_value(self.incident_closed, record)
+                if resolved_value:
+                    incident_json["closed"] = resolved_value
             if self.incident_createInvestigation is not None:
-                incident_json["createInvestigation"] = self.incident_createInvestigation
+                # For boolean values, we need to handle token replacement differently
+                if isinstance(self.incident_createInvestigation, str):
+                    resolved_value = get_token_value(
+                        self.incident_createInvestigation, record
+                    )
+                    if resolved_value:
+                        # Convert string to boolean
+                        incident_json["createInvestigation"] = (
+                            resolved_value.lower() in ("true", "1", "yes", "on")
+                        )
+                else:
+                    incident_json["createInvestigation"] = (
+                        self.incident_createInvestigation
+                    )
             if self.incident_customFields:
-                try:
-                    incident_json["customFields"] = json.loads(
-                        self.incident_customFields
-                    )
-                except Exception as e:
-                    logging.error(
-                        f'Error decoding customFields, value="{self.incident_customFields}", error="{e}", skipping field.'
-                    )
+                resolved_value = get_token_value(self.incident_customFields, record)
+                if resolved_value:
+                    try:
+                        incident_json["customFields"] = json.loads(resolved_value)
+                    except Exception as e:
+                        logging.error(
+                            f'Error decoding customFields, value="{resolved_value}", error="{e}", skipping field.'
+                        )
             if self.incident_details:
-                incident_json["details"] = self.incident_details
+                resolved_value = get_token_value(self.incident_details, record)
+                if resolved_value:
+                    incident_json["details"] = resolved_value
             if self.incident_labels:
-                try:
-                    incident_json["labels"] = json.loads(self.incident_labels)
-                except Exception as e:
-                    logging.error(
-                        f'Error decoding labels, value="{self.incident_labels}", error="{e}", skipping field.'
-                    )
+                resolved_value = get_token_value(self.incident_labels, record)
+                if resolved_value:
+                    try:
+                        incident_json["labels"] = json.loads(resolved_value)
+                    except Exception as e:
+                        logging.error(
+                            f'Error decoding labels, value="{resolved_value}", error="{e}", skipping field.'
+                        )
             if self.incident_modified:
-                incident_json["modified"] = self.incident_modified
+                resolved_value = get_token_value(self.incident_modified, record)
+                if resolved_value:
+                    incident_json["modified"] = resolved_value
             if self.incident_name:
-                incident_json["name"] = self.incident_name
+                resolved_value = get_token_value(self.incident_name, record)
+                if resolved_value:
+                    incident_json["name"] = resolved_value
             if self.incident_playbookId:
-                incident_json["playbookId"] = self.incident_playbookId
+                resolved_value = get_token_value(self.incident_playbookId, record)
+                if resolved_value:
+                    incident_json["playbookId"] = resolved_value
             if self.incident_rawJSON:
-                incident_json["rawJSON"] = self.incident_rawJSON
+                resolved_value = get_token_value(self.incident_rawJSON, record)
+                if resolved_value:
+                    incident_json["rawJSON"] = resolved_value
             if self.incident_reason:
-                incident_json["reason"] = self.incident_reason
+                resolved_value = get_token_value(self.incident_reason, record)
+                if resolved_value:
+                    incident_json["reason"] = resolved_value
             if self.incident_severity is not None:
-                incident_json["severity"] = self.incident_severity
+                # For numeric values, handle token replacement
+                if isinstance(self.incident_severity, str):
+                    resolved_value = get_token_value(self.incident_severity, record)
+                    if resolved_value:
+                        try:
+                            incident_json["severity"] = float(resolved_value)
+                        except ValueError:
+                            logging.error(
+                                f'Error converting severity to float, value="{resolved_value}", skipping field.'
+                            )
+                else:
+                    incident_json["severity"] = self.incident_severity
             if self.incident_sla is not None:
-                incident_json["sla"] = self.incident_sla
+                # For numeric values, handle token replacement
+                if isinstance(self.incident_sla, str):
+                    resolved_value = get_token_value(self.incident_sla, record)
+                    if resolved_value:
+                        try:
+                            incident_json["sla"] = float(resolved_value)
+                        except ValueError:
+                            logging.error(
+                                f'Error converting sla to float, value="{resolved_value}", skipping field.'
+                            )
+                else:
+                    incident_json["sla"] = self.incident_sla
             if self.incident_status is not None:
-                incident_json["status"] = self.incident_status
+                # For numeric values, handle token replacement
+                if isinstance(self.incident_status, str):
+                    resolved_value = get_token_value(self.incident_status, record)
+                    if resolved_value:
+                        try:
+                            incident_json["status"] = float(resolved_value)
+                        except ValueError:
+                            logging.error(
+                                f'Error converting status to float, value="{resolved_value}", skipping field.'
+                            )
+                else:
+                    incident_json["status"] = self.incident_status
             if self.incident_type:
-                incident_json["type"] = self.incident_type
+                resolved_value = get_token_value(self.incident_type, record)
+                if resolved_value:
+                    incident_json["type"] = resolved_value
 
             # make the API call if there is content to send
             if incident_json:
