@@ -284,8 +284,8 @@ def replace_tokens(command, event_data):
                 value = value[part]
             return str(value)
         except (KeyError, TypeError):
-            # If field not found or value is None, return empty string
-            return ""
+            # If field not found or value is None, return the original token unchanged
+            return match.group(0)
 
     # Replace all matches in the command
     return re.sub(pattern, replace_match, command)
