@@ -666,8 +666,12 @@ class xsoarRestHandler(StreamingCommand):
                             result_record["xsoar_response"] = json.dumps(
                                 response.json()
                             )
+                            logging.debug(
+                                f"xsoar_response={json.dumps(response.json())}"
+                            )
                         except json.JSONDecodeError:
                             result_record["xsoar_response"] = response.text
+                            logging.debug(f"xsoar_response={response.text}")
                     else:
                         result_record["xsoar_error"] = response.text
                         # store the record in the resilient store

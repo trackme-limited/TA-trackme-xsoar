@@ -389,6 +389,7 @@ class xsoarRestHandler(GeneratingCommand):
                         verify=verify_ssl,
                         proxies=proxy_dict,
                     )
+                    logging.debug(f"xsoar_response={response.text}")
                 else:
                     response = requests.get(
                         target_url, headers=headers, verify=verify_ssl
@@ -403,6 +404,7 @@ class xsoarRestHandler(GeneratingCommand):
                         verify=verify_ssl,
                         proxies=proxy_dict,
                     )
+                    logging.debug(f"xsoar_response={response.text}")
                 else:
                     response = requests.post(
                         target_url, headers=headers, data=json_data, verify=verify_ssl
@@ -418,6 +420,7 @@ class xsoarRestHandler(GeneratingCommand):
                         verify=verify_ssl,
                         proxies=proxy_dict,
                     )
+                    logging.debug(f"xsoar_response={response.text}")
                 else:
                     response = requests.delete(
                         target_url, headers=headers, data=json_data, verify=verify_ssl
